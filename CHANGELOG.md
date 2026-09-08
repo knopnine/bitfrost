@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.1] - 2026-09-09
+
+### Fixed
+- **Resolved Windows `ntdll.dll` Crash (Access Violation `0xc0000005`)**:
+  - **Thread-Safe HID I/O**: Synchronized all `hidapi` read, write, and close operations with a reentrant `threading.RLock()`.
+  - **Graceful Bridge Shutdown**: Ensured the background polling thread finishes its current iteration and joins before closing handles or unregistering virtual gamepads.
+  - **System Tray Icon Debouncing**: Prevented repeated Win32 shell icon allocations every second by updating the tray icon only when the connection state actually changes.
+  - **ViGEm Callback Protection**: Kept strong Python references to the C callback function and matched `inspect.signature` precisely to prevent ctypes callback deallocation.
+
+### Added
+- **Centralized File Logging (`switch2xbox.log`)**:
+  - Automatically records all runtime events and full exception stack traces to `switch2xbox.log` with a 5 MB rotating buffer.
+  - Installed global `sys.excepthook` and `threading.excepthook` handlers so no crash goes unrecorded.
+- **View Logs Button**:
+  - Added a `📄 View Logs` button in the GUI and a `View Logs (switch2xbox.log)` option in the system tray menu to easily open logs in Notepad.
+
+---
+
 ## [1.1.0] - 2026-09-09
 
 ### Added

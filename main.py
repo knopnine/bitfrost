@@ -8,6 +8,7 @@ from bridge import GamepadBridge
 from config import DEFAULT_SWITCH_PID, DEFAULT_SWITCH_VID, BridgeConfig
 from device import list_connected_gamepads
 from inspector import run_inspector
+from logger import logger, setup_logging
 
 
 def parse_hex_int(val: str) -> int:
@@ -87,6 +88,7 @@ def interactive_select_device() -> Optional[BridgeConfig]:
 
 
 def main() -> None:
+    setup_logging()
     parser = argparse.ArgumentParser(
         description="Switch2Xbox: Bridge Nintendo Switch & ODM Gamepad to Virtual Xbox 360"
     )

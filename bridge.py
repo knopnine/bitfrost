@@ -75,13 +75,19 @@ class GamepadBridge:
 
             # Register force feedback (rumble) notification from games
             try:
-                def _on_vigem_notification(client, target, large_motor, small_motor, led_number, user_data):
-                    self._on_game_rumble_received(large_motor, small_motor)
-
-                self.virtual_pad.register_notification(_on_vigem_notification)
+                # Keep strong reference to prevent GC while registered in C driver
+                self._vigem_callback = self._on_vigem_notification
+                self.virtual_pad.register_notification(self._vigem_callback)
                 print(f"[ViGEmBus] Virtual {pad_label} Controller connected with Force Feedback (Rumble).")
             except Exception as e:
                 print(f"[ViGEmBus] Virtual {pad_label} Controller connected (rumble warning: {e}).")
+
+    def _on_vigem_notification(self, client, target, large_motor, small_motor, led_number, user_data):
+        """C-callback invoked by ViGEmBus driver."""
+        try:
+            self._on_game_rumble_received(large_motor, small_motor)
+        except Exception as e:
+            print(f"[ViGEmBus] Callback exception: {e}")
 
     def _on_game_rumble_received(self, large_motor: int, small_motor: int) -> None:
         """Called by ViGEmBus when a game sends vibration commands to the virtual controller."""
@@ -108,6 +114,7 @@ class GamepadBridge:
                 pass
             del self.virtual_pad
             self.virtual_pad = None
+            self._vigem_callback = None
             print("[ViGEmBus] Virtual controller disconnected.")
 
     def _apply_state_to_virtual_pad(self, state: GamepadState) -> None:
@@ -412,11 +419,30 @@ class GamepadBridge:
 
         except KeyboardInterrupt:
             print("\n[Bridge] Keyboard interrupt received.")
+        except Exception as e:
+            print(f"[Bridge] Error in loop: {e}")
         finally:
-            self.stop()
+            self._cleanup_resources()
 
     def stop(self) -> None:
         """Clean teardown of all resources."""
+        if not self._running and self.virtual_pad is None:
+            return
+
+        self._running = False
+
+        # Wait for polling thread to finish its current iteration
+        if self._thread and self._thread.is_alive() and threading.current_thread() != self._thread:
+            try:
+                self._thread.join(timeout=1.5)
+            except Exception:
+                pass
+        self._thread = None
+
+        self._cleanup_resources()
+
+    def _cleanup_resources(self) -> None:
+        """Internal resource teardown."""
         self._running = False
         try:
             self.device.send_rumble(0, 0)

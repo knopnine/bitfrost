@@ -1,7 +1,8 @@
 """Device discovery, connection, handshake, and reconnect handling via hidapi."""
 
-import time
 import logging
+import threading
+import time
 from typing import Any, Dict, List, Optional
 
 import hid
@@ -106,10 +107,12 @@ class ControllerDevice:
         self.handle: Optional[hid.device] = None
         self.device_info: Optional[Dict[str, Any]] = None
         self._counter = 0
+        self._io_lock = threading.RLock()
 
     @property
     def is_connected(self) -> bool:
-        return self.handle is not None
+        with self._io_lock:
+            return self.handle is not None
 
     def open(self) -> bool:
         """Attempt to discover and open the controller HID handle."""
@@ -239,45 +242,48 @@ class ControllerDevice:
 
     def read(self, max_length: int = 64, timeout_ms: int = 5) -> Optional[bytes]:
         """Non-blocking read of raw HID packet."""
-        if not self.handle:
-            return None
+        with self._io_lock:
+            if not self.handle:
+                return None
 
-        try:
-            raw = self.handle.read(max_length, timeout_ms)
-            if raw:
-                return bytes(raw)
-            return None
-        except Exception as e:
-            # Device disconnected or communication lost
-            logger.warning(f"Device read error: {e}")
-            self.close()
-            return None
+            try:
+                raw = self.handle.read(max_length, timeout_ms)
+                if raw:
+                    return bytes(raw)
+                return None
+            except Exception as e:
+                # Device disconnected or communication lost
+                logger.warning(f"Device read error: {e}")
+                self._safe_close_locked()
+                return None
 
     def send_rumble(self, large_motor: int, small_motor: int) -> bool:
         """Send Switch Pro output report 0x10 with HD rumble data."""
-        if not self.handle:
-            return False
+        with self._io_lock:
+            if not self.handle:
+                return False
 
-        self._counter = (self._counter + 1) & 0x0F
-        packet = build_rumble_packet(large_motor, small_motor, self._counter)
-        try:
-            written = self.handle.write(packet)
-            return written > 0
-        except Exception as e:
-            logger.debug(f"Failed to write rumble packet: {e}")
-            return False
+            self._counter = (self._counter + 1) & 0x0F
+            packet = build_rumble_packet(large_motor, small_motor, self._counter)
+            try:
+                written = self.handle.write(packet)
+                return written > 0
+            except Exception as e:
+                logger.debug(f"Failed to write rumble packet: {e}")
+                return False
 
     def close(self) -> None:
-        """Close HID device handle."""
+        """Safely close HID device handle."""
+        with self._io_lock:
+            self._safe_close_locked()
+
+    def _safe_close_locked(self) -> None:
+        """Internal close under _io_lock."""
         if self.handle:
-            # Send neutral rumble before closing to ensure motors stop
-            try:
-                self.send_rumble(0, 0)
-            except Exception:
-                pass
             try:
                 self.handle.close()
             except Exception:
                 pass
             self.handle = None
+            logger.info("[Device] Disconnected.")
             print("[Device] Disconnected.")

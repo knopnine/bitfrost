@@ -9,7 +9,7 @@ from typing import Optional
 
 
 APP_NAME = "Switch2Xbox"
-APP_VERSION = "1.1.0"
+APP_VERSION = "1.1.1"
 APP_DESCRIPTION = "Nintendo Switch Pro & ODM Gamepad to Virtual Xbox 360 & DS4 Bridge"
 SETTINGS_FILENAME = "settings.json"
 

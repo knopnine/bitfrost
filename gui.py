@@ -22,6 +22,7 @@ from config import (
 )
 from device import list_connected_gamepads
 from icon import generate_gamepad_icon, save_ico_file
+from logger import logger, open_log_file, setup_logging
 from protocol import BatteryStatus, ProtocolMode
 
 
@@ -48,7 +49,13 @@ class GamepadBridgeGUI:
         self.bridge: Optional[GamepadBridge] = None
         self.tray_icon: Optional[pystray.Icon] = None
         self.is_connected = False
+        self._last_tray_connected: Optional[bool] = None
         self.devices_list: List[Dict[str, Any]] = []
+
+        # Catch uncaught Tkinter exceptions in log file
+        def _on_tk_exception(exc_type, exc_value, exc_traceback):
+            logger.error("Uncaught exception in Tkinter event:", exc_info=(exc_type, exc_value, exc_traceback))
+        self.root.report_callback_exception = _on_tk_exception
 
         self._setup_style()
         self._build_ui()
@@ -350,12 +357,15 @@ class GamepadBridgeGUI:
         )
         self.test_btn.pack(side="right", fill="x", expand=True)
 
-        # Bottom Bar: Hide to tray & Exit
+        # Bottom Bar: Hide to tray, View Logs & Exit
         bottom_frame = ttk.Frame(main_frame)
         bottom_frame.pack(fill="x", pady=(2, 0))
 
         self.tray_btn = ttk.Button(bottom_frame, text="⬇ Minimize to Tray", command=self.hide_to_tray, style="Secondary.TButton")
-        self.tray_btn.pack(side="left")
+        self.tray_btn.pack(side="left", padx=(0, 4))
+
+        self.logs_btn = ttk.Button(bottom_frame, text="📄 View Logs", command=open_log_file, style="Secondary.TButton")
+        self.logs_btn.pack(side="left")
 
         self.exit_btn = ttk.Button(bottom_frame, text="Quit App", command=self.quit_app, style="Secondary.TButton")
         self.exit_btn.pack(side="right")
@@ -369,6 +379,7 @@ class GamepadBridgeGUI:
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Open Window", self.show_from_tray),
             pystray.MenuItem("Test Controller (joy.cpl)", self.open_joy_cpl),
+            pystray.MenuItem("View Logs (switch2xbox.log)", open_log_file),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Start Bridge", self.start_bridge),
             pystray.MenuItem("Stop Bridge", self.stop_bridge),
@@ -387,15 +398,21 @@ class GamepadBridgeGUI:
         threading.Thread(target=self.tray_icon.run, daemon=True, name="SystemTrayThread").start()
 
     def update_tray_icon(self, connected: bool) -> None:
-        """Update system tray icon color dynamically based on connection status."""
-        if self.tray_icon:
-            try:
-                new_img = generate_gamepad_icon(connected=connected, size=64)
-                self.tray_icon.icon = new_img
-                status_text = "Connected" if connected else "Waiting for controller..."
-                self.tray_icon.title = f"Switch2Xbox ({status_text})"
-            except Exception:
-                pass
+        """Update system tray icon color dynamically only when connection status changes."""
+        if not self.tray_icon or not getattr(self.tray_icon, "visible", False):
+            return
+
+        if connected == self._last_tray_connected:
+            return
+
+        self._last_tray_connected = connected
+        try:
+            new_img = generate_gamepad_icon(connected=connected, size=64)
+            self.tray_icon.icon = new_img
+            status_text = "Connected" if connected else "Waiting for controller..."
+            self.tray_icon.title = f"Switch2Xbox ({status_text})"
+        except Exception as e:
+            logger.debug(f"Error updating tray icon: {e}")
 
     def refresh_devices(self) -> None:
         """Scan connected game controllers and populate dropdown."""
@@ -669,6 +686,7 @@ class GamepadBridgeGUI:
 
 
 def run_gui() -> None:
+    setup_logging()
     root = tk.Tk()
     app = GamepadBridgeGUI(root)
     root.mainloop()
