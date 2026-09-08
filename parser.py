@@ -50,24 +50,81 @@ class GamepadState:
     protocol_mode: ProtocolMode = ProtocolMode.UNKNOWN
 
 
-def apply_radial_deadzone(norm_x: float, norm_y: float, deadzone: float, outer_deadzone: float = 0.05) -> Tuple[int, int]:
-    """Applies smooth radial deadzone and outer saturation scaling [-1.0, 1.0] -> [-32768, 32767].
+def apply_radial_deadzone(
+    norm_x: float,
+    norm_y: float,
+    deadzone: float,
+    outer_deadzone: float = 0.05,
+    stick_curve: str = "linear",
+) -> Tuple[int, int]:
+    """Applies smooth radial deadzone, outer saturation, and sensitivity curves [-1.0, 1.0] -> [-32768, 32767].
 
     Inner deadzone eliminates center stick drift.
     Outer deadzone (saturation) ensures 100% full sprint/tilt is reached on ODM sticks.
+    Sensitivity curves:
+      - 'linear': 1:1 direct response
+      - 'smooth': exponential (x^1.5) for fine camera aiming / stealth / archery in AC Shadows
+      - 'aggressive': power (x^0.75) for rapid twitch responsiveness
     """
     mag = math.hypot(norm_x, norm_y)
     if mag <= deadzone or mag == 0:
         return 0, 0
 
     max_range = max(0.05, 1.0 - outer_deadzone)
-    scaled_mag = min(1.0, (mag - deadzone) / max(0.01, max_range - deadzone))
+    scaled_mag = min(1.0, max(0.0, (mag - deadzone) / max(0.01, max_range - deadzone)))
+
+    # Apply sensitivity response curve
+    if stick_curve == "smooth":
+        # Exponential curve: subtle near center for fine archery / camera control, full speed at edge
+        scaled_mag = math.pow(scaled_mag, 1.5)
+    elif stick_curve == "aggressive":
+        # Aggressive curve: quick acceleration for high-action camera turns
+        scaled_mag = math.pow(scaled_mag, 0.75)
+
     res_x = (norm_x / mag) * scaled_mag
     res_y = (norm_y / mag) * scaled_mag
 
     int_x = max(-32768, min(32767, int(res_x * 32767)))
     int_y = max(-32768, min(32767, int(res_y * 32767)))
     return int_x, int_y
+
+
+class TriggerRamp:
+    """Manages progressive trigger smoothing / ramp state (0 to 255)."""
+
+    def __init__(self, ramp_frames: int = 5):
+        # 5 frames at 200 Hz = 25ms ramp duration
+        self.ramp_frames = max(1, ramp_frames)
+        self.step = 255.0 / self.ramp_frames
+        self._left_val: float = 0.0
+        self._right_val: float = 0.0
+
+    def reset(self) -> None:
+        self._left_val = 0.0
+        self._right_val = 0.0
+
+    def process(self, raw_left: int, raw_right: int, mode: str = "hair") -> Tuple[int, int]:
+        """Returns processed trigger values (0 to 255) based on mode ('hair' vs 'progressive')."""
+        if mode != "progressive":
+            self._left_val = float(raw_left)
+            self._right_val = float(raw_right)
+            return raw_left, raw_right
+
+        # Left trigger progressive pull
+        if raw_left > 0:
+            target = float(raw_left)
+            self._left_val = min(target, self._left_val + self.step)
+        else:
+            self._left_val = 0.0
+
+        # Right trigger progressive pull
+        if raw_right > 0:
+            target = float(raw_right)
+            self._right_val = min(target, self._right_val + self.step)
+        else:
+            self._right_val = 0.0
+
+        return int(round(self._left_val)), int(round(self._right_val))
 
 
 class SwitchProParser:
@@ -131,8 +188,12 @@ class SwitchProParser:
         norm_rx = max(-1.0, min(1.0, (raw_rx - 2048) / 2048.0))
         norm_ry = max(-1.0, min(1.0, (raw_ry - 2048) / 2048.0))
 
-        stick_lx, stick_ly = apply_radial_deadzone(norm_lx, norm_ly, self.config.deadzone, self.config.outer_deadzone)
-        stick_rx, stick_ry = apply_radial_deadzone(norm_rx, norm_ry, self.config.deadzone, self.config.outer_deadzone)
+        stick_lx, stick_ly = apply_radial_deadzone(
+            norm_lx, norm_ly, self.config.deadzone, self.config.outer_deadzone, self.config.stick_curve
+        )
+        stick_rx, stick_ry = apply_radial_deadzone(
+            norm_rx, norm_ry, self.config.deadzone, self.config.outer_deadzone, self.config.stick_curve
+        )
 
         # ABXY Remapping:
         # Nintendo physical layout:     Xbox physical layout:
@@ -200,8 +261,12 @@ class OdmSimple3FParser:
         norm_rx = max(-1.0, min(1.0, (raw_rx - 128) / 128.0))
         norm_ry = max(-1.0, min(1.0, -(raw_ry - 128) / 128.0))
 
-        stick_lx, stick_ly = apply_radial_deadzone(norm_lx, norm_ly, self.config.deadzone, self.config.outer_deadzone)
-        stick_rx, stick_ry = apply_radial_deadzone(norm_rx, norm_ry, self.config.deadzone, self.config.outer_deadzone)
+        stick_lx, stick_ly = apply_radial_deadzone(
+            norm_lx, norm_ly, self.config.deadzone, self.config.outer_deadzone, self.config.stick_curve
+        )
+        stick_rx, stick_ry = apply_radial_deadzone(
+            norm_rx, norm_ry, self.config.deadzone, self.config.outer_deadzone, self.config.stick_curve
+        )
 
         # Byte 5: D-pad / Hat switch (low nibble) and Buttons (high nibble)
         hat = data[5] & 0x0F
@@ -300,8 +365,12 @@ class GenericDirectInputParser:
         norm_rx = max(-1.0, min(1.0, (raw_rx - 128) / 128.0))
         norm_ry = max(-1.0, min(1.0, -(raw_ry - 128) / 128.0))
 
-        stick_lx, stick_ly = apply_radial_deadzone(norm_lx, norm_ly, self.config.deadzone, self.config.outer_deadzone)
-        stick_rx, stick_ry = apply_radial_deadzone(norm_rx, norm_ry, self.config.deadzone, self.config.outer_deadzone)
+        stick_lx, stick_ly = apply_radial_deadzone(
+            norm_lx, norm_ly, self.config.deadzone, self.config.outer_deadzone, self.config.stick_curve
+        )
+        stick_rx, stick_ry = apply_radial_deadzone(
+            norm_rx, norm_ry, self.config.deadzone, self.config.outer_deadzone, self.config.stick_curve
+        )
 
         # Buttons bitmask (16-bit)
         btn_idx = offset + 4
@@ -380,38 +449,44 @@ class UnifiedGamepadParser:
         self.switch_parser = SwitchProParser(config)
         self.odm_parser = OdmSimple3FParser(config)
         self.generic_parser = GenericDirectInputParser(config)
+        self.trigger_ramp = TriggerRamp()
         self.detected_mode: ProtocolMode = ProtocolMode.UNKNOWN
 
     def parse(self, data: bytes) -> Optional[GamepadState]:
         if not data:
             return None
 
+        state: Optional[GamepadState] = None
+
         if self.config.force_generic:
             state = self.generic_parser.parse(data)
             if state:
                 self.detected_mode = ProtocolMode.GENERIC_HID
-            return state
+        else:
+            first_byte = data[0]
 
-        first_byte = data[0]
+            # 1. Standard Switch Pro Reports (0x30 full, 0x21 subcommand reply)
+            if first_byte in (0x30, 0x21) and len(data) >= 12:
+                state = self.switch_parser.parse(data)
+                if state:
+                    self.detected_mode = state.protocol_mode
 
-        # 1. Standard Switch Pro Reports (0x30 full, 0x21 subcommand reply)
-        if first_byte in (0x30, 0x21) and len(data) >= 12:
-            state = self.switch_parser.parse(data)
-            if state:
-                self.detected_mode = state.protocol_mode
-                return state
+            # 2. Third-Party ODM Simple Report (0x3F)
+            elif first_byte == 0x3F and len(data) >= 8:
+                state = self.odm_parser.parse(data)
+                if state:
+                    self.detected_mode = ProtocolMode.ODM_SIMPLE_3F
 
-        # 2. Third-Party ODM Simple Report (0x3F)
-        if first_byte == 0x3F and len(data) >= 8:
-            state = self.odm_parser.parse(data)
-            if state:
-                self.detected_mode = ProtocolMode.ODM_SIMPLE_3F
-                return state
+            # 3. Fallback: Generic DirectInput HID report
+            if state is None:
+                state = self.generic_parser.parse(data)
+                if state:
+                    self.detected_mode = ProtocolMode.GENERIC_HID
 
-        # 3. Fallback: Generic DirectInput HID report
-        state = self.generic_parser.parse(data)
+        # Apply trigger profile (hair trigger vs progressive smooth ramp)
         if state:
-            self.detected_mode = ProtocolMode.GENERIC_HID
-            return state
+            state.trigger_l, state.trigger_r = self.trigger_ramp.process(
+                state.trigger_l, state.trigger_r, mode=self.config.trigger_mode
+            )
 
-        return None
+        return state

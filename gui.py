@@ -13,20 +13,26 @@ import pystray
 from PIL import Image, ImageTk
 
 from bridge import GamepadBridge
-from config import DEFAULT_SWITCH_PID, DEFAULT_SWITCH_VID, BridgeConfig, set_windows_autostart
+from config import (
+    APP_VERSION,
+    DEFAULT_SWITCH_PID,
+    DEFAULT_SWITCH_VID,
+    BridgeConfig,
+    set_windows_autostart,
+)
 from device import list_connected_gamepads
 from icon import generate_gamepad_icon, save_ico_file
 from protocol import BatteryStatus, ProtocolMode
 
 
 class GamepadBridgeGUI:
-    """Tkinter + pystray System Tray Application for Gamepad Bridge."""
+    """Tkinter + pystray System Tray Application for Switch2Xbox."""
 
     def __init__(self, root: tk.Tk):
         self.root = root
-        self.root.title("Switch2Xbox")
-        self.root.geometry("460x650")
-        self.root.minsize(440, 620)
+        self.root.title(f"Switch2Xbox v{APP_VERSION}")
+        self.root.geometry("470x730")
+        self.root.minsize(450, 680)
 
         # Set application icon
         self.icon_path = os.path.abspath("app_icon.ico")
@@ -91,35 +97,39 @@ class GamepadBridgeGUI:
 
     def _build_ui(self) -> None:
         """Construct the GUI interface."""
-        main_frame = ttk.Frame(self.root, padding="16 12 16 12")
+        main_frame = ttk.Frame(self.root, padding="14 10 14 10")
         main_frame.pack(fill="both", expand=True)
 
         # --- Header ---
         header_frame = ttk.Frame(main_frame)
-        header_frame.pack(fill="x", pady=(0, 10))
+        header_frame.pack(fill="x", pady=(0, 8))
 
-        title_lbl = ttk.Label(header_frame, text="Switch2Xbox", style="Header.TLabel")
+        title_lbl = ttk.Label(header_frame, text=f"Switch2Xbox v{APP_VERSION} 🎮", style="Header.TLabel")
         title_lbl.pack(anchor="w")
-        sub_lbl = ttk.Label(header_frame, text="Nintendo Switch & ODM Gamepad -> Virtual Xbox 360", style="SubHeader.TLabel")
+        sub_lbl = ttk.Label(
+            header_frame,
+            text="Switch Pro & ODM Clone -> Virtual Xbox 360 / DualShock 4",
+            style="SubHeader.TLabel",
+        )
         sub_lbl.pack(anchor="w")
 
         # --- Status Card ---
-        status_card = ttk.Frame(main_frame, style="Card.TFrame", padding=12)
-        status_card.pack(fill="x", pady=(0, 10))
+        status_card = ttk.Frame(main_frame, style="Card.TFrame", padding=10)
+        status_card.pack(fill="x", pady=(0, 8))
 
         # Status badge row
         badge_row = ttk.Frame(status_card, style="Card.TFrame")
-        badge_row.pack(fill="x", pady=(0, 8))
+        badge_row.pack(fill="x", pady=(0, 6))
 
         self.status_pill = tk.Label(
             badge_row,
             text="● SEARCHING...",
             bg="#fff3cd",
             fg="#856404",
-            font=("Segoe UI", 10, "bold"),
-            padx=10,
-            pady=4,
-            relief="flat"
+            font=("Segoe UI", 9, "bold"),
+            padx=8,
+            pady=3,
+            relief="flat",
         )
         self.status_pill.pack(side="left")
 
@@ -130,27 +140,35 @@ class GamepadBridgeGUI:
         info_grid = ttk.Frame(status_card, style="Card.TFrame")
         info_grid.pack(fill="x")
 
-        ttk.Label(info_grid, text="Controller:", style="Card.TLabel", font=("Segoe UI", 9, "bold")).grid(row=0, column=0, sticky="w", pady=2)
+        ttk.Label(info_grid, text="Controller:", style="Card.TLabel", font=("Segoe UI", 8, "bold")).grid(row=0, column=0, sticky="w", pady=1)
         self.device_name_lbl = ttk.Label(info_grid, text="Scanning for device...", style="Card.TLabel", foreground="#555555")
-        self.device_name_lbl.grid(row=0, column=1, sticky="w", padx=8, pady=2)
+        self.device_name_lbl.grid(row=0, column=1, sticky="w", padx=6, pady=1)
 
-        ttk.Label(info_grid, text="Protocol:", style="Card.TLabel", font=("Segoe UI", 9, "bold")).grid(row=1, column=0, sticky="w", pady=2)
+        ttk.Label(info_grid, text="Emulating:", style="Card.TLabel", font=("Segoe UI", 8, "bold")).grid(row=1, column=0, sticky="w", pady=1)
+        self.emulating_lbl = ttk.Label(info_grid, text="Xbox 360 (XInput)", style="Card.TLabel", foreground="#0078d7", font=("Segoe UI", 8, "bold"))
+        self.emulating_lbl.grid(row=1, column=1, sticky="w", padx=6, pady=1)
+
+        ttk.Label(info_grid, text="Protocol:", style="Card.TLabel", font=("Segoe UI", 8, "bold")).grid(row=2, column=0, sticky="w", pady=1)
         self.protocol_lbl = ttk.Label(info_grid, text="Auto-Detect", style="Card.TLabel", foreground="#555555")
-        self.protocol_lbl.grid(row=1, column=1, sticky="w", padx=8, pady=2)
+        self.protocol_lbl.grid(row=2, column=1, sticky="w", padx=6, pady=1)
 
-        ttk.Label(info_grid, text="Battery:", style="Card.TLabel", font=("Segoe UI", 9, "bold")).grid(row=2, column=0, sticky="w", pady=2)
+        ttk.Label(info_grid, text="Timing:", style="Card.TLabel", font=("Segoe UI", 8, "bold")).grid(row=3, column=0, sticky="w", pady=1)
+        self.timing_lbl = ttk.Label(info_grid, text="Latency: -- ms", style="Card.TLabel", foreground="#555555")
+        self.timing_lbl.grid(row=3, column=1, sticky="w", padx=6, pady=1)
+
+        ttk.Label(info_grid, text="Battery:", style="Card.TLabel", font=("Segoe UI", 8, "bold")).grid(row=4, column=0, sticky="w", pady=1)
         self.battery_lbl = ttk.Label(info_grid, text="Unknown", style="Card.TLabel", foreground="#555555")
-        self.battery_lbl.grid(row=2, column=1, sticky="w", padx=8, pady=2)
+        self.battery_lbl.grid(row=4, column=1, sticky="w", padx=6, pady=1)
 
-        ttk.Label(info_grid, text="Vibration:", style="Card.TLabel", font=("Segoe UI", 9, "bold")).grid(row=3, column=0, sticky="w", pady=2)
+        ttk.Label(info_grid, text="Vibration:", style="Card.TLabel", font=("Segoe UI", 8, "bold")).grid(row=5, column=0, sticky="w", pady=1)
         self.vibration_lbl = ttk.Label(info_grid, text="Enabled ⚡", style="Card.TLabel", foreground="#28a745")
-        self.vibration_lbl.grid(row=3, column=1, sticky="w", padx=8, pady=2)
+        self.vibration_lbl.grid(row=5, column=1, sticky="w", padx=6, pady=1)
 
         # --- Device Selection Card ---
-        dev_card = ttk.Frame(main_frame, style="Card.TFrame", padding=12)
-        dev_card.pack(fill="x", pady=(0, 10))
+        dev_card = ttk.Frame(main_frame, style="Card.TFrame", padding=10)
+        dev_card.pack(fill="x", pady=(0, 8))
 
-        ttk.Label(dev_card, text="Target Device", style="CardTitle.TLabel").pack(anchor="w", pady=(0, 6))
+        ttk.Label(dev_card, text="Target Device", style="CardTitle.TLabel").pack(anchor="w", pady=(0, 4))
 
         dev_select_row = ttk.Frame(dev_card, style="Card.TFrame")
         dev_select_row.pack(fill="x")
@@ -163,46 +181,105 @@ class GamepadBridgeGUI:
         self.refresh_btn.pack(side="right")
 
         # --- Settings Card ---
-        settings_card = ttk.Frame(main_frame, style="Card.TFrame", padding=12)
-        settings_card.pack(fill="x", pady=(0, 12))
+        settings_card = ttk.Frame(main_frame, style="Card.TFrame", padding=10)
+        settings_card.pack(fill="x", pady=(0, 8))
 
-        ttk.Label(settings_card, text="Mapping & Feedback", style="CardTitle.TLabel").pack(anchor="w", pady=(0, 6))
+        ttk.Label(settings_card, text="Emulation & Mapping Profiles", style="CardTitle.TLabel").pack(anchor="w", pady=(0, 6))
 
-        # ABXY Remap Checkbox
+        # Target Emulation Row (Xbox 360 vs DS4)
+        target_row = ttk.Frame(settings_card, style="Card.TFrame")
+        target_row.pack(fill="x", pady=(0, 4))
+        ttk.Label(target_row, text="Virtual Emulation:", style="Card.TLabel").pack(side="left")
+        self.target_combo = ttk.Combobox(
+            target_row,
+            values=["Xbox 360 (Default)", "PlayStation 4 (DualShock 4)"],
+            state="readonly",
+            width=26,
+        )
+        self.target_combo.set("PlayStation 4 (DualShock 4)" if self.config.emulation_target == "ds4" else "Xbox 360 (Default)")
+        self.target_combo.pack(side="right")
+        self.target_combo.bind("<<ComboboxSelected>>", self._on_target_change)
+
+        # Stick Response Curve Row
+        curve_row = ttk.Frame(settings_card, style="Card.TFrame")
+        curve_row.pack(fill="x", pady=(0, 4))
+        ttk.Label(curve_row, text="Stick Response Curve:", style="Card.TLabel").pack(side="left")
+        self.curve_combo = ttk.Combobox(
+            curve_row,
+            values=["Linear (1:1 Standard)", "Smooth Aim (Exponential)", "Aggressive (Snappy)"],
+            state="readonly",
+            width=26,
+        )
+        curve_map = {
+            "linear": "Linear (1:1 Standard)",
+            "smooth": "Smooth Aim (Exponential)",
+            "aggressive": "Aggressive (Snappy)",
+        }
+        self.curve_combo.set(curve_map.get(self.config.stick_curve, "Linear (1:1 Standard)"))
+        self.curve_combo.pack(side="right")
+        self.curve_combo.bind("<<ComboboxSelected>>", self._on_curve_change)
+
+        # Trigger Emulation Profile Row
+        trigger_row = ttk.Frame(settings_card, style="Card.TFrame")
+        trigger_row.pack(fill="x", pady=(0, 6))
+        ttk.Label(trigger_row, text="Trigger Profile:", style="Card.TLabel").pack(side="left")
+        self.trigger_combo = ttk.Combobox(
+            trigger_row,
+            values=["Instant Hair Trigger", "Progressive Smooth Ramp (~25ms)"],
+            state="readonly",
+            width=26,
+        )
+        self.trigger_combo.set("Progressive Smooth Ramp (~25ms)" if self.config.trigger_mode == "progressive" else "Instant Hair Trigger")
+        self.trigger_combo.pack(side="right")
+        self.trigger_combo.bind("<<ComboboxSelected>>", self._on_trigger_change)
+
+        # Checkboxes
         self.swap_abxy_var = tk.BooleanVar(value=self.config.swap_abxy)
         self.swap_cb = ttk.Checkbutton(
             settings_card,
-            text="Swap ABXY to Xbox physical layout (A<->B, X<->Y)",
+            text="Swap ABXY to standard physical layout (A<->B, X<->Y)",
             variable=self.swap_abxy_var,
-            command=self._on_settings_change
+            command=self._on_settings_change,
         )
-        self.swap_cb.pack(anchor="w", pady=(0, 4))
+        self.swap_cb.pack(anchor="w", pady=(0, 2))
 
-        # In-game Rumble Checkbox
         self.rumble_var = tk.BooleanVar(value=self.config.enable_rumble)
         self.rumble_cb = ttk.Checkbutton(
             settings_card,
             text="Enable in-game force feedback (vibration)",
             variable=self.rumble_var,
-            command=self._on_settings_change
+            command=self._on_settings_change,
         )
-        self.rumble_cb.pack(anchor="w", pady=(0, 4))
+        self.rumble_cb.pack(anchor="w", pady=(0, 2))
 
-        # Auto-start with Windows Checkbox
+        self.battery_notify_var = tk.BooleanVar(value=self.config.low_battery_notify)
+        self.battery_notify_cb = ttk.Checkbutton(
+            settings_card,
+            text="Notify on low battery (desktop notification)",
+            variable=self.battery_notify_var,
+            command=self._on_settings_change,
+        )
+        self.battery_notify_cb.pack(anchor="w", pady=(0, 2))
+
         self.autostart_var = tk.BooleanVar(value=self.config.start_with_windows)
         self.autostart_cb = ttk.Checkbutton(
             settings_card,
             text="Start with Windows (Minimized to Tray)",
             variable=self.autostart_var,
-            command=self._on_settings_change
+            command=self._on_settings_change,
         )
-        self.autostart_cb.pack(anchor="w", pady=(0, 6))
+        self.autostart_cb.pack(anchor="w", pady=(0, 4))
 
         # Deadzone Slider
         dz_frame = ttk.Frame(settings_card, style="Card.TFrame")
-        dz_frame.pack(fill="x", pady=(0, 4))
-        ttk.Label(dz_frame, text="Stick Deadzone:", style="Card.TLabel").pack(side="left")
-        self.dz_val_lbl = ttk.Label(dz_frame, text=f"{int(round(self.config.deadzone * 100))}%", style="Card.TLabel", font=("Segoe UI", 9, "bold"))
+        dz_frame.pack(fill="x", pady=(0, 2))
+        ttk.Label(dz_frame, text="Stick Center Deadzone:", style="Card.TLabel").pack(side="left")
+        self.dz_val_lbl = ttk.Label(
+            dz_frame,
+            text=f"{int(round(self.config.deadzone * 100))}%",
+            style="Card.TLabel",
+            font=("Segoe UI", 9, "bold"),
+        )
         self.dz_val_lbl.pack(side="right")
 
         self.deadzone_slider = ttk.Scale(
@@ -211,22 +288,22 @@ class GamepadBridgeGUI:
             to=0.25,
             value=self.config.deadzone,
             orient="horizontal",
-            command=self._on_deadzone_slide
+            command=self._on_deadzone_slide,
         )
-        self.deadzone_slider.pack(fill="x", pady=(0, 6))
+        self.deadzone_slider.pack(fill="x", pady=(0, 4))
 
         # Polling Rate Selector
         rate_frame = ttk.Frame(settings_card, style="Card.TFrame")
         rate_frame.pack(fill="x")
-        ttk.Label(rate_frame, text="Polling Rate:", style="Card.TLabel").pack(side="left")
-        self.rate_combo = ttk.Combobox(rate_frame, values=["120 Hz", "200 Hz", "250 Hz"], state="readonly", width=10)
+        ttk.Label(rate_frame, text="Target Polling Rate:", style="Card.TLabel").pack(side="left")
+        self.rate_combo = ttk.Combobox(rate_frame, values=["120 Hz", "200 Hz", "250 Hz"], state="readonly", width=12)
         self.rate_combo.set(f"{self.config.poll_rate_hz} Hz")
         self.rate_combo.pack(side="right")
         self.rate_combo.bind("<<ComboboxSelected>>", self._on_rate_change)
 
         # --- Action Buttons ---
         btn_frame = ttk.Frame(main_frame)
-        btn_frame.pack(fill="x", pady=(0, 8))
+        btn_frame.pack(fill="x", pady=(0, 6))
 
         self.toggle_btn = tk.Button(
             btn_frame,
@@ -235,11 +312,11 @@ class GamepadBridgeGUI:
             fg="white",
             activebackground="#c9302c",
             activeforeground="white",
-            font=("Segoe UI", 10, "bold"),
+            font=("Segoe UI", 9, "bold"),
             relief="flat",
-            padx=10,
-            pady=6,
-            command=self.toggle_bridge
+            padx=8,
+            pady=5,
+            command=self.toggle_bridge,
         )
         self.toggle_btn.pack(side="left", fill="x", expand=True, padx=(0, 3))
 
@@ -253,8 +330,8 @@ class GamepadBridgeGUI:
             font=("Segoe UI", 9, "bold"),
             relief="flat",
             padx=8,
-            pady=6,
-            command=self._test_rumble_click
+            pady=5,
+            command=self._test_rumble_click,
         )
         self.rumble_test_btn.pack(side="left", padx=(0, 3))
 
@@ -268,14 +345,14 @@ class GamepadBridgeGUI:
             font=("Segoe UI", 9, "bold"),
             relief="flat",
             padx=8,
-            pady=6,
-            command=self.open_joy_cpl
+            pady=5,
+            command=self.open_joy_cpl,
         )
         self.test_btn.pack(side="right", fill="x", expand=True)
 
         # Bottom Bar: Hide to tray & Exit
         bottom_frame = ttk.Frame(main_frame)
-        bottom_frame.pack(fill="x", pady=(4, 0))
+        bottom_frame.pack(fill="x", pady=(2, 0))
 
         self.tray_btn = ttk.Button(bottom_frame, text="⬇ Minimize to Tray", command=self.hide_to_tray, style="Secondary.TButton")
         self.tray_btn.pack(side="left")
@@ -288,7 +365,7 @@ class GamepadBridgeGUI:
         tray_image = generate_gamepad_icon(connected=False, size=64)
 
         menu = pystray.Menu(
-            pystray.MenuItem("Switch2Xbox", self.show_from_tray, default=True),
+            pystray.MenuItem(f"Switch2Xbox v{APP_VERSION}", self.show_from_tray, default=True),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Open Window", self.show_from_tray),
             pystray.MenuItem("Test Controller (joy.cpl)", self.open_joy_cpl),
@@ -302,8 +379,8 @@ class GamepadBridgeGUI:
         self.tray_icon = pystray.Icon(
             "Switch2Xbox",
             tray_image,
-            "Switch2Xbox",
-            menu
+            f"Switch2Xbox v{APP_VERSION}",
+            menu,
         )
 
         # Run tray loop in background thread
@@ -354,6 +431,40 @@ class GamepadBridgeGUI:
             self.stop_bridge()
             self.start_bridge()
 
+    def _on_target_change(self, event=None) -> None:
+        """Switch virtual emulation target between Xbox 360 and DualShock 4."""
+        choice = self.target_combo.get()
+        new_target = "ds4" if "PlayStation" in choice else "xbox360"
+        if self.config.emulation_target != new_target:
+            self.config.emulation_target = new_target
+            self.config.save_to_file()
+            # Restart bridge to switch virtual gamepad device
+            if self.bridge and self.bridge.is_running:
+                self.stop_bridge()
+                self.start_bridge()
+
+    def _on_curve_change(self, event=None) -> None:
+        """Change stick sensitivity response curve."""
+        choice = self.curve_combo.get()
+        if "Smooth" in choice:
+            self.config.stick_curve = "smooth"
+        elif "Aggressive" in choice:
+            self.config.stick_curve = "aggressive"
+        else:
+            self.config.stick_curve = "linear"
+
+        if self.bridge:
+            self.bridge.config.stick_curve = self.config.stick_curve
+        self.config.save_to_file()
+
+    def _on_trigger_change(self, event=None) -> None:
+        """Change trigger profile between hair trigger and progressive ramp."""
+        choice = self.trigger_combo.get()
+        self.config.trigger_mode = "progressive" if "Progressive" in choice else "hair"
+        if self.bridge:
+            self.bridge.config.trigger_mode = self.config.trigger_mode
+        self.config.save_to_file()
+
     def _on_deadzone_slide(self, val: str) -> None:
         float_val = float(val)
         self.config.deadzone = float_val
@@ -373,10 +484,12 @@ class GamepadBridgeGUI:
     def _on_settings_change(self) -> None:
         swap = self.swap_abxy_var.get()
         rumble = self.rumble_var.get()
+        notify = self.battery_notify_var.get()
         autostart = self.autostart_var.get()
 
         self.config.swap_abxy = swap
         self.config.enable_rumble = rumble
+        self.config.low_battery_notify = notify
         self.config.start_with_windows = autostart
 
         set_windows_autostart(autostart)
@@ -385,10 +498,22 @@ class GamepadBridgeGUI:
         if self.bridge:
             self.bridge.config.swap_abxy = swap
             self.bridge.config.enable_rumble = rumble
+            self.bridge.config.low_battery_notify = notify
         if rumble:
             self.vibration_lbl.config(text="Enabled ⚡", foreground="#28a745")
         else:
             self.vibration_lbl.config(text="Disabled", foreground="#888888")
+
+    def _on_battery_warning(self, battery_level: str) -> None:
+        """Display desktop notification when controller battery is low."""
+        if self.tray_icon:
+            try:
+                self.tray_icon.notify(
+                    f"⚠️ Gamepad battery is {battery_level}! Please connect charging cable.",
+                    "Switch2Xbox Battery Warning",
+                )
+            except Exception:
+                pass
 
     def _test_rumble_click(self) -> None:
         """Test physical vibration motors."""
@@ -402,13 +527,17 @@ class GamepadBridgeGUI:
         if self.bridge and self.bridge.is_running:
             return
 
-        self.bridge = GamepadBridge(self.config, status_callback=self._on_bridge_status)
+        self.bridge = GamepadBridge(
+            self.config,
+            status_callback=self._on_bridge_status,
+            battery_warning_callback=self._on_battery_warning,
+        )
         self.bridge.start_background()
 
         self.toggle_btn.config(
             text="⏹ Stop Bridge",
             bg="#d9534f",
-            activebackground="#c9302c"
+            activebackground="#c9302c",
         )
 
     def stop_bridge(self) -> None:
@@ -420,7 +549,7 @@ class GamepadBridgeGUI:
         self.toggle_btn.config(
             text="▶ Start Bridge",
             bg="#5cb85c",
-            activebackground="#4cae4c"
+            activebackground="#4cae4c",
         )
         self._update_status_ui({
             "is_connected": False,
@@ -429,6 +558,9 @@ class GamepadBridgeGUI:
             "battery": None,
             "charging": False,
             "rate_hz": 0.0,
+            "latency_ms": 0.0,
+            "jitter_ms": 0.0,
+            "target_label": "PlayStation 4" if self.config.emulation_target == "ds4" else "Xbox 360",
         })
 
     def toggle_bridge(self) -> None:
@@ -452,6 +584,7 @@ class GamepadBridgeGUI:
             self.status_pill.config(text="● SEARCHING...", bg="#fff3cd", fg="#856404")
 
         self.device_name_lbl.config(text=status.get("device_name", "None"))
+        self.emulating_lbl.config(text=status.get("target_label", "Xbox 360"))
 
         # Protocol mode label
         mode = status.get("protocol_mode", ProtocolMode.UNKNOWN)
@@ -462,6 +595,14 @@ class GamepadBridgeGUI:
             ProtocolMode.GENERIC_HID: "Generic DirectInput Fallback",
         }.get(mode, "Detecting...")
         self.protocol_lbl.config(text=mode_text)
+
+        # Timing (Latency & Jitter)
+        lat = status.get("latency_ms", 0.0)
+        jit = status.get("jitter_ms", 0.0)
+        if lat > 0:
+            self.timing_lbl.config(text=f"{lat:.1f} ms (±{jit:.1f} ms)")
+        else:
+            self.timing_lbl.config(text="Measuring...")
 
         # Battery
         bat = status.get("battery")
@@ -502,7 +643,7 @@ class GamepadBridgeGUI:
             try:
                 self.tray_icon.notify(
                     "Switch2Xbox is running in the background.\nDouble-click the tray icon to restore.",
-                    "Switch2Xbox Minimized"
+                    "Switch2Xbox Minimized",
                 )
             except Exception:
                 pass

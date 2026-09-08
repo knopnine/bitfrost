@@ -44,6 +44,36 @@ class TestBridgeIntegration(unittest.TestCase):
         self.bridge._teardown_virtual_pad()
         self.assertIsNone(self.bridge.virtual_pad)
 
+    def test_ds4_virtual_pad_lifecycle(self):
+        import vgamepad as vg
+        self.bridge.config.emulation_target = "ds4"
+        self.bridge._setup_virtual_pad()
+        self.assertIsNotNone(self.bridge.virtual_pad)
+        self.assertIsInstance(self.bridge.virtual_pad, vg.VDS4Gamepad)
+
+        state = GamepadState(
+            btn_a=True,
+            btn_b=True,
+            btn_guide=True,
+            dpad_up=True,
+            dpad_right=True,
+            trigger_l=255,
+            trigger_r=128,
+            stick_lx=16384,
+            stick_ly=16384,
+            protocol_mode=ProtocolMode.SWITCH_FULL,
+        )
+        self.bridge._apply_state_to_virtual_pad(state)
+
+        # Verify buttons bitmask
+        w_buttons = self.bridge.virtual_pad.report.wButtons
+        self.assertTrue(bool(w_buttons & vg.DS4_BUTTONS.DS4_BUTTON_CROSS))
+        self.assertTrue(bool(w_buttons & vg.DS4_BUTTONS.DS4_BUTTON_CIRCLE))
+        self.assertTrue(bool(self.bridge.virtual_pad.report.bSpecial & vg.DS4_SPECIAL_BUTTONS.DS4_SPECIAL_BUTTON_PS))
+
+        self.bridge._teardown_virtual_pad()
+        self.assertIsNone(self.bridge.virtual_pad)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,10 +1,12 @@
-"""Core polling engine and virtual Xbox 360 bridge using vgamepad and hidapi."""
+"""Core polling engine and virtual Xbox 360 / DS4 bridge using vgamepad and hidapi."""
 
+import collections
+import math
 import signal
 import sys
 import threading
 import time
-from typing import Callable, Optional, Dict, Any
+from typing import Any, Callable, Dict, Optional, Union
 
 import vgamepad as vg
 
@@ -17,12 +19,18 @@ from protocol import BatteryStatus, ProtocolMode
 class GamepadBridge:
     """Bridge coordinating controller reads, protocol decoding, and ViGEm virtual gamepad updates."""
 
-    def __init__(self, config: BridgeConfig, status_callback: Optional[Callable[[Dict[str, Any]], None]] = None):
+    def __init__(
+        self,
+        config: BridgeConfig,
+        status_callback: Optional[Callable[[Dict[str, Any]], None]] = None,
+        battery_warning_callback: Optional[Callable[[str], None]] = None,
+    ):
         self.config = config
         self.status_callback = status_callback
+        self.battery_warning_callback = battery_warning_callback
         self.device = ControllerDevice(config)
         self.parser = UnifiedGamepadParser(config)
-        self.virtual_pad: Optional[vg.VX360Gamepad] = None
+        self.virtual_pad: Optional[Union[vg.VX360Gamepad, vg.VDS4Gamepad]] = None
         self._running = False
         self._thread: Optional[threading.Thread] = None
         self._last_battery: Optional[BatteryStatus] = None
@@ -31,6 +39,15 @@ class GamepadBridge:
         self._packet_count = 0
         self._last_rate_calc = time.time()
         self.current_rate_hz = 0.0
+
+        # Latency & Jitter calculation
+        self._packet_intervals = collections.deque(maxlen=60)
+        self._last_packet_ts = 0.0
+        self.current_latency_ms = 0.0
+        self.current_jitter_ms = 0.0
+
+        # Low battery alert debounce
+        self._last_battery_alert_ts = 0.0
 
         # Rumble state tracking
         self._rumble_lock = threading.Lock()
@@ -46,9 +63,15 @@ class GamepadBridge:
         return self._running
 
     def _setup_virtual_pad(self) -> None:
-        """Initialize the ViGEmBus virtual Xbox 360 gamepad and register rumble callback."""
+        """Initialize the ViGEmBus virtual gamepad (Xbox 360 or DualShock 4) and register rumble callback."""
         if self.virtual_pad is None:
-            self.virtual_pad = vg.VX360Gamepad()
+            target = self.config.emulation_target.lower()
+            if target == "ds4":
+                self.virtual_pad = vg.VDS4Gamepad()
+                pad_label = "PlayStation 4 (DualShock 4)"
+            else:
+                self.virtual_pad = vg.VX360Gamepad()
+                pad_label = "Xbox 360"
 
             # Register force feedback (rumble) notification from games
             try:
@@ -56,9 +79,9 @@ class GamepadBridge:
                     self._on_game_rumble_received(large_motor, small_motor)
 
                 self.virtual_pad.register_notification(_on_vigem_notification)
-                print("[ViGEmBus] Virtual Xbox 360 Controller connected with Force Feedback (Rumble).")
+                print(f"[ViGEmBus] Virtual {pad_label} Controller connected with Force Feedback (Rumble).")
             except Exception as e:
-                print(f"[ViGEmBus] Virtual Xbox 360 Controller connected (rumble notification warning: {e}).")
+                print(f"[ViGEmBus] Virtual {pad_label} Controller connected (rumble warning: {e}).")
 
     def _on_game_rumble_received(self, large_motor: int, small_motor: int) -> None:
         """Called by ViGEmBus when a game sends vibration commands to the virtual controller."""
@@ -75,64 +98,131 @@ class GamepadBridge:
         """Safely release and destroy the virtual controller."""
         if self.virtual_pad is not None:
             try:
+                self.virtual_pad.unregister_notification()
+            except Exception:
+                pass
+            try:
                 self.virtual_pad.reset()
                 self.virtual_pad.update()
             except Exception:
                 pass
             del self.virtual_pad
             self.virtual_pad = None
-            print("[ViGEmBus] Virtual Xbox 360 Controller disconnected.")
+            print("[ViGEmBus] Virtual controller disconnected.")
 
     def _apply_state_to_virtual_pad(self, state: GamepadState) -> None:
-        """Apply parsed GamepadState to the virtual Xbox 360 controller report."""
+        """Apply parsed GamepadState to virtual Xbox 360 or DS4 controller."""
         pad = self.virtual_pad
         if not pad:
             return
 
-        # Direct atomic update of the XUSB report fields
-        w_buttons = 0
-        if state.btn_a:
-            w_buttons |= vg.XUSB_BUTTON.XUSB_GAMEPAD_A
-        if state.btn_b:
-            w_buttons |= vg.XUSB_BUTTON.XUSB_GAMEPAD_B
-        if state.btn_x:
-            w_buttons |= vg.XUSB_BUTTON.XUSB_GAMEPAD_X
-        if state.btn_y:
-            w_buttons |= vg.XUSB_BUTTON.XUSB_GAMEPAD_Y
-        if state.btn_lb:
-            w_buttons |= vg.XUSB_BUTTON.XUSB_GAMEPAD_LEFT_SHOULDER
-        if state.btn_rb:
-            w_buttons |= vg.XUSB_BUTTON.XUSB_GAMEPAD_RIGHT_SHOULDER
-        if state.btn_back:
-            w_buttons |= vg.XUSB_BUTTON.XUSB_GAMEPAD_BACK
-        if state.btn_start:
-            w_buttons |= vg.XUSB_BUTTON.XUSB_GAMEPAD_START
-        if state.btn_guide:
-            w_buttons |= vg.XUSB_BUTTON.XUSB_GAMEPAD_GUIDE
-        if state.btn_lsb:
-            w_buttons |= vg.XUSB_BUTTON.XUSB_GAMEPAD_LEFT_THUMB
-        if state.btn_rsb:
-            w_buttons |= vg.XUSB_BUTTON.XUSB_GAMEPAD_RIGHT_THUMB
+        if isinstance(pad, vg.VDS4Gamepad):
+            # PlayStation 4 DualShock 4 mapping
+            w_buttons = 0
+            if state.btn_a:
+                w_buttons |= vg.DS4_BUTTONS.DS4_BUTTON_CROSS
+            if state.btn_b:
+                w_buttons |= vg.DS4_BUTTONS.DS4_BUTTON_CIRCLE
+            if state.btn_x:
+                w_buttons |= vg.DS4_BUTTONS.DS4_BUTTON_SQUARE
+            if state.btn_y:
+                w_buttons |= vg.DS4_BUTTONS.DS4_BUTTON_TRIANGLE
+            if state.btn_lb:
+                w_buttons |= vg.DS4_BUTTONS.DS4_BUTTON_SHOULDER_LEFT
+            if state.btn_rb:
+                w_buttons |= vg.DS4_BUTTONS.DS4_BUTTON_SHOULDER_RIGHT
+            if state.btn_back:
+                w_buttons |= vg.DS4_BUTTONS.DS4_BUTTON_SHARE
+            if state.btn_start:
+                w_buttons |= vg.DS4_BUTTONS.DS4_BUTTON_OPTIONS
+            if state.btn_lsb:
+                w_buttons |= vg.DS4_BUTTONS.DS4_BUTTON_THUMB_LEFT
+            if state.btn_rsb:
+                w_buttons |= vg.DS4_BUTTONS.DS4_BUTTON_THUMB_RIGHT
 
-        # D-pad directions
-        if state.dpad_up:
-            w_buttons |= vg.XUSB_BUTTON.XUSB_GAMEPAD_DPAD_UP
-        if state.dpad_down:
-            w_buttons |= vg.XUSB_BUTTON.XUSB_GAMEPAD_DPAD_DOWN
-        if state.dpad_left:
-            w_buttons |= vg.XUSB_BUTTON.XUSB_GAMEPAD_DPAD_LEFT
-        if state.dpad_right:
-            w_buttons |= vg.XUSB_BUTTON.XUSB_GAMEPAD_DPAD_RIGHT
+            w_special = 0
+            if state.btn_guide:
+                w_special |= vg.DS4_SPECIAL_BUTTONS.DS4_SPECIAL_BUTTON_PS
 
-        pad.report.wButtons = w_buttons
-        pad.report.bLeftTrigger = max(0, min(255, state.trigger_l))
-        pad.report.bRightTrigger = max(0, min(255, state.trigger_r))
-        pad.report.sThumbLX = max(-32768, min(32767, state.stick_lx))
-        pad.report.sThumbLY = max(-32768, min(32767, state.stick_ly))
-        pad.report.sThumbRX = max(-32768, min(32767, state.stick_rx))
-        pad.report.sThumbRY = max(-32768, min(32767, state.stick_ry))
+            # Calculate D-Pad direction
+            dpad_dir = vg.DS4_DPAD_DIRECTIONS.DS4_BUTTON_DPAD_NONE
+            if state.dpad_up and state.dpad_right:
+                dpad_dir = vg.DS4_DPAD_DIRECTIONS.DS4_BUTTON_DPAD_NORTHEAST
+            elif state.dpad_down and state.dpad_right:
+                dpad_dir = vg.DS4_DPAD_DIRECTIONS.DS4_BUTTON_DPAD_SOUTHEAST
+            elif state.dpad_down and state.dpad_left:
+                dpad_dir = vg.DS4_DPAD_DIRECTIONS.DS4_BUTTON_DPAD_SOUTHWEST
+            elif state.dpad_up and state.dpad_left:
+                dpad_dir = vg.DS4_DPAD_DIRECTIONS.DS4_BUTTON_DPAD_NORTHWEST
+            elif state.dpad_up:
+                dpad_dir = vg.DS4_DPAD_DIRECTIONS.DS4_BUTTON_DPAD_NORTH
+            elif state.dpad_right:
+                dpad_dir = vg.DS4_DPAD_DIRECTIONS.DS4_BUTTON_DPAD_EAST
+            elif state.dpad_down:
+                dpad_dir = vg.DS4_DPAD_DIRECTIONS.DS4_BUTTON_DPAD_SOUTH
+            elif state.dpad_left:
+                dpad_dir = vg.DS4_DPAD_DIRECTIONS.DS4_BUTTON_DPAD_WEST
 
-        pad.update()
+            pad.directional_pad(dpad_dir)
+            pad.report.wButtons = w_buttons
+            pad.report.bSpecial = w_special
+            pad.left_trigger_float(max(0.0, min(1.0, state.trigger_l / 255.0)))
+            pad.right_trigger_float(max(0.0, min(1.0, state.trigger_r / 255.0)))
+            # DS4 thumbstick Y is inverted in raw report (0=up, 255=down)
+            pad.left_joystick_float(
+                max(-1.0, min(1.0, state.stick_lx / 32767.0)),
+                max(-1.0, min(1.0, -state.stick_ly / 32767.0)),
+            )
+            pad.right_joystick_float(
+                max(-1.0, min(1.0, state.stick_rx / 32767.0)),
+                max(-1.0, min(1.0, -state.stick_ry / 32767.0)),
+            )
+            pad.update()
+
+        elif isinstance(pad, vg.VX360Gamepad):
+            # Xbox 360 XUSB mapping
+            w_buttons = 0
+            if state.btn_a:
+                w_buttons |= vg.XUSB_BUTTON.XUSB_GAMEPAD_A
+            if state.btn_b:
+                w_buttons |= vg.XUSB_BUTTON.XUSB_GAMEPAD_B
+            if state.btn_x:
+                w_buttons |= vg.XUSB_BUTTON.XUSB_GAMEPAD_X
+            if state.btn_y:
+                w_buttons |= vg.XUSB_BUTTON.XUSB_GAMEPAD_Y
+            if state.btn_lb:
+                w_buttons |= vg.XUSB_BUTTON.XUSB_GAMEPAD_LEFT_SHOULDER
+            if state.btn_rb:
+                w_buttons |= vg.XUSB_BUTTON.XUSB_GAMEPAD_RIGHT_SHOULDER
+            if state.btn_back:
+                w_buttons |= vg.XUSB_BUTTON.XUSB_GAMEPAD_BACK
+            if state.btn_start:
+                w_buttons |= vg.XUSB_BUTTON.XUSB_GAMEPAD_START
+            if state.btn_guide:
+                w_buttons |= vg.XUSB_BUTTON.XUSB_GAMEPAD_GUIDE
+            if state.btn_lsb:
+                w_buttons |= vg.XUSB_BUTTON.XUSB_GAMEPAD_LEFT_THUMB
+            if state.btn_rsb:
+                w_buttons |= vg.XUSB_BUTTON.XUSB_GAMEPAD_RIGHT_THUMB
+
+            # D-pad directions
+            if state.dpad_up:
+                w_buttons |= vg.XUSB_BUTTON.XUSB_GAMEPAD_DPAD_UP
+            if state.dpad_down:
+                w_buttons |= vg.XUSB_BUTTON.XUSB_GAMEPAD_DPAD_DOWN
+            if state.dpad_left:
+                w_buttons |= vg.XUSB_BUTTON.XUSB_GAMEPAD_DPAD_LEFT
+            if state.dpad_right:
+                w_buttons |= vg.XUSB_BUTTON.XUSB_GAMEPAD_DPAD_RIGHT
+
+            pad.report.wButtons = w_buttons
+            pad.report.bLeftTrigger = max(0, min(255, state.trigger_l))
+            pad.report.bRightTrigger = max(0, min(255, state.trigger_r))
+            pad.report.sThumbLX = max(-32768, min(32767, state.stick_lx))
+            pad.report.sThumbLY = max(-32768, min(32767, state.stick_ly))
+            pad.report.sThumbRX = max(-32768, min(32767, state.stick_rx))
+            pad.report.sThumbRY = max(-32768, min(32767, state.stick_ry))
+            pad.update()
 
     def _reset_virtual_pad_inputs(self) -> None:
         """Reset inputs to neutral center/released."""
@@ -164,6 +254,8 @@ class GamepadBridge:
             prod = self.device.device_info.get("product_string") or "Gamepad"
             dev_name = f"{mfr} {prod}".strip()
 
+        target_label = "PlayStation 4" if self.config.emulation_target.lower() == "ds4" else "Xbox 360"
+
         info = {
             "is_connected": is_connected,
             "device_name": dev_name,
@@ -171,6 +263,9 @@ class GamepadBridge:
             "battery": battery,
             "charging": charging,
             "rate_hz": self.current_rate_hz,
+            "latency_ms": self.current_latency_ms,
+            "jitter_ms": self.current_jitter_ms,
+            "target_label": target_label,
             "rumble_active": (self._current_large_motor > 0 or self._current_small_motor > 0),
         }
         try:
@@ -235,6 +330,12 @@ class GamepadBridge:
 
                 if packet:
                     self._packet_count += 1
+                    now_perf = time.perf_counter()
+                    if self._last_packet_ts > 0.0:
+                        dt = now_perf - self._last_packet_ts
+                        self._packet_intervals.append(dt)
+                    self._last_packet_ts = now_perf
+
                     state = self.parser.parse(packet)
                     if state:
                         self._apply_state_to_virtual_pad(state)
@@ -252,19 +353,33 @@ class GamepadBridge:
                             }.get(state.protocol_mode, "Unknown")
                             print(f"[Protocol] Active mode: {mode_name}")
 
-                        # Check battery changes (if available)
-                        if state.battery is not None and state.battery != self._last_battery:
-                            self._last_battery = state.battery
-                            status_updated = True
-                            charge_str = " (Charging)" if state.charging else ""
-                            print(f"[Status] Battery: {state.battery.name}{charge_str}")
+                        # Check battery changes & notifications
+                        if state.battery is not None:
+                            if state.battery != self._last_battery:
+                                self._last_battery = state.battery
+                                status_updated = True
+                                charge_str = " (Charging)" if state.charging else ""
+                                print(f"[Status] Battery: {state.battery.name}{charge_str}")
 
-                        # Update rate calculation periodically (~1s)
+                            # Battery warning alert
+                            if state.battery in (BatteryStatus.EMPTY, BatteryStatus.CRITICAL, BatteryStatus.LOW) and not state.charging:
+                                now_sec = time.time()
+                                if self.config.low_battery_notify and (now_sec - self._last_battery_alert_ts > 600.0):
+                                    self._last_battery_alert_ts = now_sec
+                                    if self.battery_warning_callback:
+                                        self.battery_warning_callback(state.battery.name)
+
+                        # Update rate and latency calculation periodically (~1s)
                         now_ts = time.time()
                         if now_ts - self._last_rate_calc >= 1.0:
                             self.current_rate_hz = self._packet_count / (now_ts - self._last_rate_calc)
                             self._packet_count = 0
                             self._last_rate_calc = now_ts
+                            if self._packet_intervals:
+                                mean_dt = sum(self._packet_intervals) / len(self._packet_intervals)
+                                variance = sum((x - mean_dt) ** 2 for x in self._packet_intervals) / len(self._packet_intervals)
+                                self.current_latency_ms = mean_dt * 1000.0
+                                self.current_jitter_ms = math.sqrt(variance) * 1000.0
                             status_updated = True
 
                         if status_updated:

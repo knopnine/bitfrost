@@ -9,7 +9,8 @@ from typing import Optional
 
 
 APP_NAME = "Switch2Xbox"
-APP_DESCRIPTION = "Nintendo Switch Pro & ODM Gamepad to Virtual Xbox 360 Bridge"
+APP_VERSION = "1.1.0"
+APP_DESCRIPTION = "Nintendo Switch Pro & ODM Gamepad to Virtual Xbox 360 & DS4 Bridge"
 SETTINGS_FILENAME = "settings.json"
 
 # Default Vendor and Product IDs for Nintendo Switch Pro Controller
@@ -87,6 +88,10 @@ class BridgeConfig:
     poll_rate_hz: int = 200         # Target polling rate (120 to 250 Hz)
     swap_abxy: bool = True          # Remap Nintendo A<->B, X<->Y to Xbox standard
     enable_rumble: bool = True      # In-game force feedback (rumble)
+    emulation_target: str = "xbox360"  # "xbox360" or "ds4"
+    stick_curve: str = "linear"     # "linear", "smooth", "aggressive"
+    trigger_mode: str = "hair"      # "hair" (instant 100%) or "progressive" (smooth ramp)
+    low_battery_notify: bool = True # Windows tray toast when battery is critical
     start_with_windows: bool = False
     start_minimized: bool = False
     debug: bool = False             # Verbose debug logging
@@ -110,6 +115,10 @@ class BridgeConfig:
                 "poll_rate_hz": self.poll_rate_hz,
                 "swap_abxy": self.swap_abxy,
                 "enable_rumble": self.enable_rumble,
+                "emulation_target": self.emulation_target,
+                "stick_curve": self.stick_curve,
+                "trigger_mode": self.trigger_mode,
+                "low_battery_notify": self.low_battery_notify,
                 "start_with_windows": self.start_with_windows,
                 "start_minimized": self.start_minimized,
                 "force_generic": self.force_generic,
@@ -135,6 +144,10 @@ class BridgeConfig:
                 config.poll_rate_hz = data.get("poll_rate_hz", 200)
                 config.swap_abxy = data.get("swap_abxy", True)
                 config.enable_rumble = data.get("enable_rumble", True)
+                config.emulation_target = data.get("emulation_target", "xbox360")
+                config.stick_curve = data.get("stick_curve", "linear")
+                config.trigger_mode = data.get("trigger_mode", "hair")
+                config.low_battery_notify = data.get("low_battery_notify", True)
                 config.start_with_windows = data.get("start_with_windows", False)
                 config.start_minimized = data.get("start_minimized", False)
                 config.force_generic = data.get("force_generic", False)

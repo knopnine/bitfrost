@@ -177,5 +177,52 @@ class TestUnifiedParser(unittest.TestCase):
         self.assertEqual(s3f.protocol_mode, ProtocolMode.ODM_SIMPLE_3F)
 
 
+class TestCurvesAndTriggers(unittest.TestCase):
+    def test_sensitivity_curves(self):
+        # Center should be 0 for all curves
+        for curve in ("linear", "smooth", "aggressive"):
+            x, y = apply_radial_deadzone(0.0, 0.0, deadzone=0.10, stick_curve=curve)
+            self.assertEqual((x, y), (0, 0))
+
+        # Max input reaches max 32767 for all curves
+        for curve in ("linear", "smooth", "aggressive"):
+            x, y = apply_radial_deadzone(1.0, 0.0, deadzone=0.10, outer_deadzone=0.05, stick_curve=curve)
+            self.assertEqual(x, 32767)
+
+        # Midpoint comparison: smooth aim should produce lower value than linear for archery precision
+        x_lin, _ = apply_radial_deadzone(0.5, 0.0, deadzone=0.0, outer_deadzone=0.0, stick_curve="linear")
+        x_smooth, _ = apply_radial_deadzone(0.5, 0.0, deadzone=0.0, outer_deadzone=0.0, stick_curve="smooth")
+        x_aggr, _ = apply_radial_deadzone(0.5, 0.0, deadzone=0.0, outer_deadzone=0.0, stick_curve="aggressive")
+
+        self.assertLess(x_smooth, x_lin, "Smooth curve should produce gentler response near center")
+        self.assertGreater(x_aggr, x_lin, "Aggressive curve should produce snappier response near center")
+
+    def test_trigger_ramp(self):
+        from parser import TriggerRamp
+        ramp = TriggerRamp(ramp_frames=5)
+
+        # Hair mode: instant 255
+        l, r = ramp.process(255, 255, mode="hair")
+        self.assertEqual(l, 255)
+        self.assertEqual(r, 255)
+
+        # Progressive mode: 5-tick ramp
+        ramp.reset()
+        t1_l, t1_r = ramp.process(255, 255, mode="progressive")
+        self.assertGreater(t1_l, 0)
+        self.assertLess(t1_l, 255)
+
+        # Step through remaining frames until saturated
+        for _ in range(5):
+            tn_l, tn_r = ramp.process(255, 255, mode="progressive")
+        self.assertEqual(tn_l, 255)
+        self.assertEqual(tn_r, 255)
+
+        # Release: instant reset to 0
+        l_rel, r_rel = ramp.process(0, 0, mode="progressive")
+        self.assertEqual(l_rel, 0)
+        self.assertEqual(r_rel, 0)
+
+
 if __name__ == "__main__":
     unittest.main()

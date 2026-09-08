@@ -23,9 +23,9 @@ def parse_hex_int(val: str) -> int:
 
 def print_banner() -> None:
     print("=" * 65)
-    print("  Switch2Xbox")
-    print("  Nintendo Switch & ODM Gamepad -> Virtual Xbox 360 Bridge")
-    print("  Low-Latency XInput Emulation (ViGEmBus + HD Rumble)")
+    print("  Switch2Xbox v1.1.0")
+    print("  Nintendo Switch & ODM Gamepad -> Virtual Xbox 360 / DS4 Bridge")
+    print("  Low-Latency XInput / DirectInput Emulation (ViGEmBus + Rumble)")
     print("=" * 65)
 
 
@@ -99,6 +99,9 @@ def main() -> None:
     parser.add_argument("--select", action="store_true", help="Interactive controller selector")
     parser.add_argument("--inspect", action="store_true", help="Launch live raw HID packet inspector")
     parser.add_argument("--deadzone", type=float, default=0.10, help="Stick center deadzone fraction (default: 0.10 = 10%%)")
+    parser.add_argument("--target", choices=["xbox360", "ds4"], default="xbox360", help="Emulated controller type (xbox360 or ds4)")
+    parser.add_argument("--curve", choices=["linear", "smooth", "aggressive"], default="linear", help="Stick response curve")
+    parser.add_argument("--trigger", choices=["hair", "progressive"], default="hair", help="Trigger profile (hair or progressive)")
     parser.add_argument("--rate", type=int, default=200, help="Polling rate in Hz (default: 200 Hz)")
     parser.add_argument("--no-swap", action="store_true", help="Disable Nintendo -> Xbox ABXY button swap")
     parser.add_argument("--no-rumble", action="store_true", help="Disable in-game force feedback vibration")
@@ -123,6 +126,10 @@ def main() -> None:
         deadzone=args.deadzone,
         poll_rate_hz=args.rate,
         swap_abxy=not args.no_swap,
+        enable_rumble=not args.no_rumble,
+        emulation_target=args.target,
+        stick_curve=args.curve,
+        trigger_mode=args.trigger,
         force_generic=args.force_generic,
     )
 
