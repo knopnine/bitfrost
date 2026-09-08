@@ -1,0 +1,21 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# PyInstaller / Build output
+build/
+dist/
+*.spec
+
+# User runtime settings
+settings.json
+
+# Logs and temporary files
+*.log
+*.tmp
+
+# IDE / Editor configuration
+.vscode/
+.idea/
+.gemini/
