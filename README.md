@@ -1,10 +1,14 @@
-# Bifrost 🌈 (v1.3.0)
+<p align="center">
+  <img src="assets/hero_banner.jpg" alt="Bitfrost Hero Banner" width="100%">
+</p>
+
+# Bitfrost 🌈 (v1.3.0)
 
 A lightweight, high-performance, low-latency Windows background utility that seamlessly bridges **Nintendo Switch Pro Controllers** and **third-party / ODM Switch clone gamepads** (USB or Bluetooth) to a virtual **Xbox 360 controller (XInput)** or **PlayStation 4 controller (DualShock 4)** via ViGEmBus.
 
 ---
 
-## The Story: Why I Built Bifrost 💡
+## The Story: Why I Built Bitfrost 💡
 
 I have always loved the ergonomics, weight, and battery life of the Nintendo Switch Pro Controller and its modern third-party alternatives. Whether it's an official Pro Controller or a budget-friendly wireless clone from 8BitDo, Gulikit, or generic Shenzhen ODMs, the controller just feels right in your hands.
 
@@ -27,9 +31,9 @@ No bloat. No complex configuration. Just plug, play, and game.
 
 ---
 
-## What Bifrost Does ⚡
+## What Bitfrost Does ⚡
 
-Bifrost acts as a high-speed, low-latency translation bridge between raw Nintendo Switch HID packets and virtual gaming controllers:
+Bitfrost acts as a high-speed, low-latency translation bridge between raw Nintendo Switch HID packets and virtual gaming controllers:
 
 - 🎮 **Universal Virtual Controller Emulation**: Emulates a native Microsoft Xbox 360 or Sony DualShock 4 controller via the rock-solid ViGEmBus kernel driver. Compatible with 100% of PC games across Steam, Xbox Game Pass, Epic Games, EA App, Ubisoft Connect, GOG, and standalone game launchers.
 - 📳 **Real Force Feedback (Rumble) Translation**: Intercepts game vibration commands (low-frequency heavy motor and high-frequency light motor) and translates them into authentic Nintendo Switch HD Rumble / dual-motor frequency packets (`0x10` subcommands) in real time.
@@ -67,8 +71,8 @@ Bifrost acts as a high-speed, low-latency translation bridge between raw Nintend
 
 ### 2. Running the Standalone Executable (.exe)
 No Python installation required!
-1. Download or locate `dist/Bifrost/Bifrost.exe`.
-2. Double-click **`Bifrost.exe`**.
+1. Download or locate `dist/Bitfrost/Bitfrost.exe`.
+2. Double-click **`Bitfrost.exe`**.
 3. Connect your gamepad via USB cable or Bluetooth.
 4. The tray icon turns **Green**, and your game detects the virtual controller immediately!
 
@@ -121,7 +125,7 @@ To compile a standalone `.exe` using PyInstaller:
 ```bash
 python build_exe.py
 ```
-The compiled output will be generated in `dist/Bifrost/Bifrost.exe`.
+The compiled output will be generated in `dist/Bitfrost/Bitfrost.exe`.
 
 ---
 

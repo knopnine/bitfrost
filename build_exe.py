@@ -1,4 +1,4 @@
-"""Build script to compile Bifrost into a standalone Windows .exe."""
+"""Build script to compile Bitfrost into a standalone Windows .exe."""
 
 import os
 import shutil
@@ -9,11 +9,12 @@ from icon import save_ico_file
 
 def build() -> None:
     print("=======================================================")
-    print("    Bifrost - Building Standalone Windows Executable   ")
+    print("    Bitfrost - Building Standalone Windows Executable   ")
     print("=======================================================")
 
     # Terminate any running instances before building to prevent file lock errors
     if sys.platform == "win32":
+        subprocess.run(["taskkill", "/F", "/IM", "Bitfrost.exe"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         subprocess.run(["taskkill", "/F", "/IM", "Bifrost.exe"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         subprocess.run(["taskkill", "/F", "/IM", "Switch2Xbox.exe"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
@@ -29,7 +30,7 @@ def build() -> None:
         "--noconfirm",
         "--onedir",             # onedir is faster to launch and avoids temp unpacking issues
         "--windowed",           # GUI application without console window
-        "--name", "Bifrost",
+        "--name", "Bitfrost",
         "--icon", "app_icon.ico",
         "--add-data", f"app_icon.ico{os.pathsep}.",
         "--collect-all", "vgamepad",
@@ -47,10 +48,10 @@ def build() -> None:
     if result.returncode == 0:
         print("-" * 55)
         print("Build SUCCESSFUL!")
-        dist_dir = os.path.abspath(os.path.join("dist", "Bifrost"))
-        exe_path = os.path.join(dist_dir, "Bifrost.exe")
+        dist_dir = os.path.abspath(os.path.join("dist", "Bitfrost"))
+        exe_path = os.path.join(dist_dir, "Bitfrost.exe")
         print(f"Executable output: {exe_path}")
-        print("You can run Bifrost.exe directly from Windows Explorer!")
+        print("You can run Bitfrost.exe directly from Windows Explorer!")
     else:
         print(f"Build failed with exit code {result.returncode}")
 
