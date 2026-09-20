@@ -24,8 +24,8 @@ def parse_hex_int(val: str) -> int:
 
 def print_banner() -> None:
     print("=" * 65)
-    print(f"  Switch2Xbox v{APP_VERSION}")
-    print("  Nintendo Switch & ODM Gamepad -> Virtual Xbox 360 / DS4 Bridge")
+    print(f"  Bifrost v{APP_VERSION} 🌈")
+    print("  Universal Gamepad Bridge -> Virtual Xbox 360 / DualShock 4")
     print("  Low-Latency XInput / DirectInput Emulation (ViGEmBus + Rumble)")
     print("=" * 65)
 
@@ -90,7 +90,7 @@ def interactive_select_device() -> Optional[BridgeConfig]:
 def main() -> None:
     setup_logging()
     parser = argparse.ArgumentParser(
-        description="Switch2Xbox: Bridge Nintendo Switch & ODM Gamepad to Virtual Xbox 360"
+        description="Bifrost: Universal Gamepad Bridge to Virtual Xbox 360 & DualShock 4"
     )
     parser.add_argument("--gui", action="store_true", help="Launch graphical user interface with system tray")
     parser.add_argument("--minimized", action="store_true", help="Start minimized directly to the system tray")

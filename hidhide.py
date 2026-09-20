@@ -67,7 +67,7 @@ def get_current_app_path() -> str:
 
 
 def ensure_app_whitelisted() -> bool:
-    """Whitelists the current Switch2Xbox process (or Python executable) in HidHide."""
+    """Whitelists the current Bifrost process (or Python executable) in HidHide."""
     app_path = get_current_app_path()
     cli = find_hidhide_cli()
     if cli:

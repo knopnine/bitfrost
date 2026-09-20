@@ -1,4 +1,4 @@
-"""Modern Windows 11 Dark-Themed GUI and System Tray application for Switch2Xbox."""
+"""Modern Windows 11 Dark-Themed GUI and System Tray application for Bifrost."""
 
 import math
 import os
@@ -36,7 +36,7 @@ class GamepadBridgeGUI:
 
     def __init__(self, root: tk.Tk):
         self.root = root
-        self.root.title(f"Switch2Xbox v{APP_VERSION}")
+        self.root.title(f"Bifrost v{APP_VERSION} 🌈")
         self.root.geometry("560x800")
         self.root.minsize(530, 720)
 
@@ -154,7 +154,7 @@ class GamepadBridgeGUI:
 
         title_lbl = tk.Label(
             header_left,
-            text=f"Switch2Xbox v{APP_VERSION} 🎮",
+            text=f"Bifrost v{APP_VERSION} 🌈",
             bg=self.c_bg,
             fg="#ffffff",
             font=("Segoe UI", 13, "bold"),
@@ -162,7 +162,7 @@ class GamepadBridgeGUI:
         title_lbl.pack(anchor="w")
         sub_lbl = tk.Label(
             header_left,
-            text="Switch Pro & ODM Clone -> Virtual Xbox 360 / DualShock 4",
+            text="Universal Controller Bridge -> Virtual Xbox 360 / DualShock 4",
             bg=self.c_bg,
             fg=self.c_muted,
             font=("Segoe UI", 8),
@@ -1115,11 +1115,11 @@ class GamepadBridgeGUI:
         tray_image = generate_gamepad_icon(connected=False, size=64)
 
         menu = pystray.Menu(
-            pystray.MenuItem(f"Switch2Xbox v{APP_VERSION}", self.show_from_tray, default=True),
+            pystray.MenuItem(f"Bifrost v{APP_VERSION}", self.show_from_tray, default=True),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Open Window", self.show_from_tray),
             pystray.MenuItem("Test Controller (joy.cpl)", self.open_joy_cpl),
-            pystray.MenuItem("View Logs (switch2xbox.log)", open_log_file),
+            pystray.MenuItem("View Logs (bifrost.log)", open_log_file),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Start Bridge", self.start_bridge),
             pystray.MenuItem("Stop Bridge", self.stop_bridge),
@@ -1127,7 +1127,7 @@ class GamepadBridgeGUI:
             pystray.MenuItem("Exit", self.quit_app),
         )
 
-        self.tray_icon = pystray.Icon("Switch2Xbox", tray_image, f"Switch2Xbox v{APP_VERSION}", menu)
+        self.tray_icon = pystray.Icon("Bifrost", tray_image, f"Bifrost v{APP_VERSION}", menu)
         threading.Thread(target=self.tray_icon.run, daemon=True, name="SystemTrayThread").start()
 
     def update_tray_icon(self, connected: bool) -> None:
@@ -1143,7 +1143,7 @@ class GamepadBridgeGUI:
             new_img = generate_gamepad_icon(connected=connected, size=64)
             self.tray_icon.icon = new_img
             status_text = "Connected" if connected else "Waiting for controller..."
-            self.tray_icon.title = f"Switch2Xbox ({status_text})"
+            self.tray_icon.title = f"Bifrost ({status_text})"
         except Exception as e:
             logger.debug(f"Error updating tray icon: {e}")
 
@@ -1362,7 +1362,7 @@ class GamepadBridgeGUI:
             try:
                 self.tray_icon.notify(
                     f"⚠️ Gamepad battery is {battery_level}! Please connect charging cable.",
-                    "Switch2Xbox Battery Warning",
+                    "Bifrost Battery Warning",
                 )
             except Exception:
                 pass
@@ -1494,8 +1494,8 @@ class GamepadBridgeGUI:
         if self.tray_icon:
             try:
                 self.tray_icon.notify(
-                    "Switch2Xbox is running in background.\nDouble-click tray icon to restore.",
-                    "Switch2Xbox Minimized",
+                    "Bifrost is running in background.\nDouble-click tray icon to restore.",
+                    "Bifrost Minimized",
                 )
             except Exception:
                 pass

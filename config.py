@@ -1,4 +1,4 @@
-"""Configuration and settings persistence module for Switch2Xbox."""
+"""Configuration and settings persistence module for Bifrost."""
 
 import json
 import os
@@ -8,9 +8,9 @@ from dataclasses import asdict, dataclass
 from typing import Optional
 
 
-APP_NAME = "Switch2Xbox"
+APP_NAME = "Bifrost"
 APP_VERSION = "1.3.0"
-APP_DESCRIPTION = "Nintendo Switch Pro & ODM Gamepad to Virtual Xbox 360 & DS4 Bridge"
+APP_DESCRIPTION = "Universal Controller Bridge to Virtual Xbox 360 & DualShock 4"
 SETTINGS_FILENAME = "settings.json"
 PROFILES_FILENAME = "profiles.json"
 
@@ -52,7 +52,7 @@ def get_profiles_path() -> str:
 
 
 def is_windows_autostart_enabled() -> bool:
-    """Checks if Switch2Xbox is registered in HKCU Run key."""
+    """Checks if Bifrost is registered in HKCU Run key."""
     try:
         with winreg.OpenKey(winreg.HKEY_CURRENT_USER, REG_RUN_KEY, 0, winreg.KEY_READ) as key:
             winreg.QueryValueEx(key, APP_NAME)
@@ -64,7 +64,7 @@ def is_windows_autostart_enabled() -> bool:
 
 
 def set_windows_autostart(enable: bool) -> None:
-    """Registers or unregisters Switch2Xbox in Windows Startup."""
+    """Registers or unregisters Bifrost in Windows Startup."""
     try:
         with winreg.OpenKey(winreg.HKEY_CURRENT_USER, REG_RUN_KEY, 0, winreg.KEY_SET_VALUE) as key:
             if enable:
@@ -89,7 +89,7 @@ def set_windows_autostart(enable: bool) -> None:
 
 @dataclass
 class BridgeConfig:
-    """Runtime configuration for Switch2Xbox."""
+    """Runtime configuration for Bifrost."""
     vendor_id: int = DEFAULT_SWITCH_VID
     product_id: int = DEFAULT_SWITCH_PID
     device_path: Optional[bytes] = None

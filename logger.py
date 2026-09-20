@@ -1,4 +1,4 @@
-"""Centralized logging and crash diagnostics module for Switch2Xbox."""
+"""Centralized logging and crash diagnostics module for Bifrost."""
 
 import logging
 from logging.handlers import RotatingFileHandler
@@ -8,12 +8,12 @@ import sys
 import threading
 from typing import Optional
 
-LOG_FILENAME = "switch2xbox.log"
+LOG_FILENAME = "bifrost.log"
 _logging_initialized = False
 
 
 def get_log_path() -> str:
-    """Returns absolute path to switch2xbox.log next to executable or script."""
+    """Returns absolute path to bifrost.log next to executable or script."""
     if getattr(sys, "frozen", False):
         base_dir = os.path.dirname(sys.executable)
     else:
@@ -85,17 +85,17 @@ def setup_logging(level: int = logging.INFO) -> str:
     threading.excepthook = _thread_exception_handler
 
     _logging_initialized = True
-    root_logger.info(f"=== Switch2Xbox Logging Started (Log path: {log_path}) ===")
+    root_logger.info(f"=== Bifrost Logging Started (Log path: {log_path}) ===")
     return log_path
 
 
 def open_log_file() -> None:
-    """Opens switch2xbox.log in Windows Notepad or default text editor."""
+    """Opens bifrost.log in Windows Notepad or default text editor."""
     log_path = get_log_path()
     if not os.path.exists(log_path):
         try:
             with open(log_path, "w", encoding="utf-8") as f:
-                f.write("=== Switch2Xbox Log Initialized ===\n")
+                f.write("=== Bifrost Log Initialized ===\n")
         except Exception:
             pass
 
@@ -106,4 +106,4 @@ def open_log_file() -> None:
 
 
 # Default module logger
-logger = logging.getLogger("Switch2Xbox")
+logger = logging.getLogger("Bifrost")

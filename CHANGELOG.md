@@ -1,14 +1,19 @@
 # Changelog
-
-All notable changes to the **Switch2Xbox** project will be documented in this file.
-
+ 
+All notable changes to the **Bifrost** project will be documented in this file.
+ 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
+ 
 ---
-
+ 
 ## [1.3.0] - 2026-09-20
 
+### Rebranded
+- **Project Rebranded to Bifrost 🌈**:
+  - Rebranded from Switch2Xbox to **Bifrost** (universal controller bridge) to establish an independent identity and avoid trademark conflicts.
+  - Executable renamed to `Bifrost.exe`, central log renamed to `bifrost.log`.
+ 
 ### Added
 - **HardwareTester-Style Gamepad Visualizer**:
   - Modeled after the industry-standard visualizer on [hardwaretester.com/gamepad](https://hardwaretester.com/gamepad).
@@ -25,7 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added auto-handshake detection to promote the gamepad from boot mode (`0x3F` or `0x21`) back to full 60Hz 12-bit mode (`0x30`) automatically on wake-up.
   - Added spurious transition packet filter in `UnifiedGamepadParser` to drop unhandled Bluetooth state changes before they reach fallback decoders.
 - **PyInstaller Build Locking Fix**:
-  - `build_exe.py` automatically terminates any running `Switch2Xbox.exe` instances prior to compiling to prevent Windows `[WinError 5]` file locking on `.pyd` dependencies.
+  - `build_exe.py` automatically terminates any running `Bifrost.exe` instances prior to compiling to prevent Windows `[WinError 5]` file locking on `.pyd` dependencies.
 
 ---
 
@@ -70,11 +75,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **ViGEm Callback Protection**: Kept strong Python references to the C callback function and matched `inspect.signature` precisely to prevent ctypes callback deallocation.
 
 ### Added
-- **Centralized File Logging (`switch2xbox.log`)**:
-  - Automatically records all runtime events and full exception stack traces to `switch2xbox.log` with a 5 MB rotating buffer.
+- **Centralized File Logging (`bifrost.log`)**:
+  - Automatically records all runtime events and full exception stack traces to `bifrost.log` with a 5 MB rotating buffer.
   - Installed global `sys.excepthook` and `threading.excepthook` handlers so no crash goes unrecorded.
 - **View Logs Button**:
-  - Added a `📄 View Logs` button in the GUI and a `View Logs (switch2xbox.log)` option in the system tray menu to easily open logs in Notepad.
+  - Added a `📄 View Logs` button in the GUI and a `View Logs (bifrost.log)` option in the system tray menu to easily open logs in Notepad.
 
 ---
 
