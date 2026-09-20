@@ -7,6 +7,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.3.0] - 2026-09-20
+
+### Added
+- **HardwareTester-Style Gamepad Visualizer**:
+  - Modeled after the industry-standard visualizer on [hardwaretester.com/gamepad](https://hardwaretester.com/gamepad).
+  - **Vector Gamepad Silhouette**: Ergonomic vector gamepad graphic on Canvas with live-moving analog stick caps, glowing ABXY face buttons, directional D-Pad arms, trigger lobes, and bumper badges.
+  - **Dual Radars with 5-Decimal Readouts**: 96x96 circular radar displays for Left Stick (`AXIS 0, 1`) and Right Stick (`AXIS 2, 3`) with high-precision float readouts (`AXIS 0: +0.00000` to `AXIS 3: +0.00000`).
+  - **Live Circularity Error Benchmark**: Real-time scatter point plotter and mathematical circularity error calculation ($\frac{1}{N} \sum |R - 1.0| \times 100\%$) with toggle, reset, and color-coded error thresholds.
+  - **W3C Standard Button Gauges (B0 - B17)**: 18-button meter array with dynamic progress fill meters and live numeric levels (`0.00` to `1.00`), including smooth continuous analog trigger fill bars.
+  - **HardwareTester Metadata Header**: Live device metadata (`INDEX`, `DEVICE`, `TARGET`, `MAPPING`, `PROTOCOL`, `TIMING`, `BATTERY`, `VIBRATION`).
+
+### Fixed
+- **Wireless Bluetooth Inactivity Sleep & Reconnect Auto-Recovery**:
+  - Fixed issue where the gamepad goes to sleep to save battery and triggers random/ghost buttons upon reconnecting.
+  - Added 1.8s inactivity heartbeat detection in `GamepadBridge` to immediately zero all virtual gamepad inputs and cleanly close stale Windows Bluetooth HID handles.
+  - Added auto-handshake detection to promote the gamepad from boot mode (`0x3F` or `0x21`) back to full 60Hz 12-bit mode (`0x30`) automatically on wake-up.
+  - Added spurious transition packet filter in `UnifiedGamepadParser` to drop unhandled Bluetooth state changes before they reach fallback decoders.
+- **PyInstaller Build Locking Fix**:
+  - `build_exe.py` automatically terminates any running `Switch2Xbox.exe` instances prior to compiling to prevent Windows `[WinError 5]` file locking on `.pyd` dependencies.
+
+---
+
+## [1.2.0] - 2026-09-20
+
+### Added
+- **Interactive Live 2D Visualizer**:
+  - Real-time 30 FPS visualizer with dual 2D stick canvases displaying dynamic center crosshairs, live deadzone rings, and stick clicks (LSB/RSB).
+  - Analog trigger progress meters (LT/RT) displaying live percentage fill.
+  - Digital button matrix (ABXY, D-Pad, LB/RB, Back, Guide, Start) providing instant visual feedback.
+  - Throttles execution when minimized to system tray to save CPU resources.
+- **Hardware Neutral Stick Calibration**:
+  - 1-click automatic calibration sampling 60 frames of neutral stick resting positions.
+  - Calibrated center offsets are subtracted before deadzone processing, eliminating stick drift with zero center deadzone penalty.
+- **Gyro Aiming Assist**:
+  - Blends 6-axis gyroscope angular velocity into Right Stick deflections for mouse-like precision aiming.
+  - Configurable sensitivity slider (0.2x to 3.0x) and optional hold-to-aim trigger gating (aim only while holding LT / ZL).
+  - Subcommand `0x40` handshake enables IMU sensors on Switch Pro controllers.
+- **Cemuhook DSU Motion Protocol Server**:
+  - Built-in UDP server listening on port `26760` streaming 100Hz 6-axis motion packets to emulators (Dolphin, Cemu, Yuzu, Ryujinx, RPCS3).
+  - Implements protocol version negotiation, controller info query, CRC32 checksums, and client subscription tracking.
+- **Nefarius HidHide Double-Input Cloaking**:
+  - Direct integration with HidHide driver and CLI to cloak the physical Switch Pro controller from games.
+  - Ensures games only see the virtual Xbox 360 or DualShock 4 controller, preventing double-input bugs.
+- **Configuration Profiles**:
+  - Built-in preset profiles ("Default", "Shooter (Gyro Aim)", "Racing (Progressive)", "Retro (1:1 Nintendo)").
+  - Support for creating, saving, and deleting custom user profiles persisted to `profiles.json`.
+- **Windows 11 Modern Dark Theme**:
+  - Complete GUI redesign with a dark Zinc palette (`#121214`), tabbed card navigation, and custom controls.
+- **Unit Test Suite Expansion**:
+  - Added test suites for DSU UDP protocol, Gyro aim processor, and neutral center calibration (22/22 tests passing).
+
+---
+
 ## [1.1.1] - 2026-09-09
 
 ### Fixed

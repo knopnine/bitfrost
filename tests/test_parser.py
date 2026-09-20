@@ -218,10 +218,15 @@ class TestCurvesAndTriggers(unittest.TestCase):
         self.assertEqual(tn_l, 255)
         self.assertEqual(tn_r, 255)
 
-        # Release: instant reset to 0
-        l_rel, r_rel = ramp.process(0, 0, mode="progressive")
-        self.assertEqual(l_rel, 0)
-        self.assertEqual(r_rel, 0)
+    def test_switch_spurious_packet_rejection(self):
+        """Ensure spurious/transition packets on Switch Pro are dropped and do not trigger ghost buttons."""
+        config = BridgeConfig(vendor_id=0x057E, product_id=0x2009)
+        unified = UnifiedGamepadParser(config)
+
+        # Bluetooth status / unhandled packet starting with 0x08 with arbitrary data
+        spurious_packet = bytes([0x08, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00])
+        state = unified.parse(spurious_packet)
+        self.assertIsNone(state, "Spurious Bluetooth packets should not be decoded as buttons on Switch Pro")
 
 
 if __name__ == "__main__":

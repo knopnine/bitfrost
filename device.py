@@ -13,6 +13,7 @@ from protocol import (
     OUTPUT_REPORT_RUMBLE_AND_SUBCMD,
     OUTPUT_REPORT_USB_CMD,
     SUBCMD_ENABLE_VIBRATION,
+    SUBCMD_ENABLE_IMU,
     SUBCMD_SET_INPUT_REPORT_MODE,
     SUBCMD_SET_PLAYER_LIGHTS,
     REPORT_MODE_STANDARD_FULL,
@@ -110,6 +111,17 @@ class ControllerDevice:
         self._io_lock = threading.RLock()
 
     @property
+    def is_switch_controller(self) -> bool:
+        """Returns True if the current device is recognized as a Nintendo Switch controller."""
+        if self.config.vendor_id == DEFAULT_SWITCH_VID and self.config.product_id == DEFAULT_SWITCH_PID:
+            return True
+        if self.device_info:
+            vid = self.device_info.get("vendor_id", 0)
+            pid = self.device_info.get("product_id", 0)
+            return vid == DEFAULT_SWITCH_VID and pid == DEFAULT_SWITCH_PID
+        return False
+
+    @property
     def is_connected(self) -> bool:
         with self._io_lock:
             return self.handle is not None
@@ -182,16 +194,26 @@ class ControllerDevice:
                 time.sleep(0.02)
             except Exception as e:
                 logger.debug(f"USB command sequence skipped or not supported: {e}")
+        else:
+            # Bluetooth settling pause to let OS Bluetooth L2CAP connection stabilize
+            time.sleep(0.08)
 
         # 2. Subcommand 0x03, 0x30: Request Standard Full 60Hz input reports
         try:
             self.send_subcommand(SUBCMD_SET_INPUT_REPORT_MODE, [REPORT_MODE_STANDARD_FULL])
-            time.sleep(0.02)
+            time.sleep(0.03)
+            if not is_usb:
+                # Send twice for Bluetooth resilience against initial packet drop
+                self.send_subcommand(SUBCMD_SET_INPUT_REPORT_MODE, [REPORT_MODE_STANDARD_FULL])
+                time.sleep(0.02)
             # Turn on Player 1 LED
             self.send_subcommand(SUBCMD_SET_PLAYER_LIGHTS, [0x01])
             time.sleep(0.02)
             # Enable vibration
             self.send_subcommand(SUBCMD_ENABLE_VIBRATION, [0x01])
+            time.sleep(0.02)
+            # Enable 6-Axis IMU (gyro and accelerometer)
+            self.send_subcommand(SUBCMD_ENABLE_IMU, [0x01])
             time.sleep(0.02)
             print("[Handshake] Subcommands sent successfully.")
         except Exception as e:

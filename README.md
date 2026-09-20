@@ -1,24 +1,28 @@
-# Switch2Xbox 🎮 (v1.1.0)
+# Switch2Xbox 🎮 (v1.3.0)
 
 A lightweight, high-performance, low-latency Windows background utility that bridges **Nintendo Switch Pro Controllers** and **third-party / ODM Switch clone gamepads** (USB or Bluetooth) to a virtual **Xbox 360 controller (XInput)** or **PlayStation 4 controller (DualShock 4)** via ViGEmBus.
 
-Designed specifically to eliminate stick drift, restore missing force-feedback (vibration), remap buttons, and provide custom sensitivity curves for PC games (e.g. *Assassin's Creed Shadows*, Steam, Game Pass, Epic Games, emulators).
+Designed specifically to eliminate stick drift, restore missing force-feedback (vibration), remap buttons, provide custom sensitivity curves, support motion aiming, and eliminate double-input issues for PC gaming.
 
 ---
 
-## What's New in v1.1.0 🚀
+## What's New in v1.3.0 🚀
 
-- 🎮 **Dual Virtual Emulation (Xbox 360 & PlayStation 4 DualShock 4)**: Seamlessly toggle between Xbox 360 and PlayStation 4 emulation. Games that support native DualShock 4 controllers automatically display PlayStation button prompts ($\times$, $\square$, $\triangle$, $\bigcirc$)!
-- 🎯 **Stick Response Curves**:
-  - **Linear (1:1 Standard)**: Direct, transparent stick response.
-  - **Smooth Aim (Exponential S-Curve)**: Subtle response near center for archery, sniping, and stealth camera control, smoothly ramping to 100% full tilt at the rim.
-  - **Aggressive (Snappy)**: Faster initial acceleration for high-action twitch gameplay.
-- ⚡ **Trigger Emulation Profiles**:
-  - **Instant Hair Trigger**: Zero-latency instant 100% on button contact.
-  - **Progressive Smooth Ramp (~25ms)**: Microsecond progressive pull simulation preventing games from rejecting abrupt digital snaps.
-- 🪫 **Low Battery Desktop Notification**: Automatic toast notification via the system tray when your controller's battery level drops to Low or Critical.
-- ⏱️ **Real-Time Input Latency & Jitter Monitor**: Microsecond precision timing displayed live in the GUI status card (`Latency: ~5.0 ms | Jitter: ±0.3 ms`).
-- 📜 **Structured Versioning & Changelog**: Full version history tracked in [`CHANGELOG.md`](CHANGELOG.md).
+- 🕹️ **HardwareTester-Style Gamepad Visualizer**: Inspired by [hardwaretester.com/gamepad](https://hardwaretester.com/gamepad), featuring:
+  - **Vector Gamepad Silhouette**: Live animated controller outline with moving analog stick caps, glowing buttons, and trigger indicators.
+  - **Dual Precision Radars**: 5-decimal high-precision live readouts (`AXIS 0: +0.00000` to `AXIS 3: +0.00000`) following standard W3C Gamepad API conventions.
+  - **Live Circularity Error Benchmark**: Interactive benchmark tool plotting real-time scatter points on radar circles and calculating average outer gate error percentage ($\frac{1}{N} \sum |R - 1.0| \times 100\%$).
+  - **Standard Buttons (B0 - B17) Meter Array**: Live progress bar gauges and float levels (`0.00` to `1.00`) for all 18 standard W3C buttons, including analog trigger depression meters.
+- 🔋 **Wireless Bluetooth Sleep & Reconnect Auto-Recovery**:
+  - Implemented 1.8s inactivity heartbeat detection to immediately zero virtual inputs and close stale Windows Bluetooth HID handles when the controller sleeps.
+  - Automatic re-handshake engine when the controller powers back on in boot mode (`0x3F` or `0x21`), seamlessly restoring full 60Hz 12-bit mode without requiring a bridge restart.
+  - Spurious transition packet filter preventing phantom/ghost button clicks during Bluetooth reconnection.
+- 🎯 **1-Click Hardware Stick Calibration**: Automatically samples physical stick rest positions over 60 frames and saves calibrated center offsets to eliminate hardware drift with zero center deadzone penalty.
+- 🎯 **Gyro Aiming Assist**: Blends 6-axis gyroscope angular velocity into Right Stick aiming for mouse-like precision in PC shooters. Supports optional hold-to-aim gating (aim only while holding LT / ZL).
+- 📡 **Cemuhook DSU Motion Server**: Integrated UDP server broadcasting 100Hz 6-axis motion data on port `26760` with CRC32 checksums, compatible with Dolphin, Cemu, Yuzu, Ryujinx, and RPCS3.
+- 🛡️ **Nefarius HidHide Double-Input Cloaking**: Automatic physical controller cloaking via HidHide, hiding the DirectInput Switch gamepad from games so only the virtual Xbox 360 or DS4 pad is visible.
+- 💾 **Configuration Profiles**: Instant switching between customized game profiles ("Default", "Shooter (Gyro Aim)", "Racing (Progressive)", "Retro (1:1 Nintendo)") with support for custom user-created profiles.
+- 🌙 **Windows 11 Modern Dark Theme**: Clean Zinc palette (`#121214`) with tabbed card navigation.
 
 ---
 

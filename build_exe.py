@@ -12,6 +12,10 @@ def build() -> None:
     print("  Switch2Xbox - Building Standalone Windows Executable ")
     print("=======================================================")
 
+    # Terminate any running instances before building to prevent file lock errors
+    if sys.platform == "win32":
+        subprocess.run(["taskkill", "/F", "/IM", "Switch2Xbox.exe"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
     # Ensure icon exists
     ico_path = os.path.abspath("app_icon.ico")
     if not os.path.exists(ico_path):

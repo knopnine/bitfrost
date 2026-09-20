@@ -6,13 +6,15 @@ import signal
 import sys
 import threading
 import time
-from typing import Any, Callable, Dict, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import vgamepad as vg
 
 from config import BridgeConfig
 from device import ControllerDevice
-from parser import GamepadState, UnifiedGamepadParser
+from dsu_server import DsuServer
+import hidhide
+from parser import GamepadState, GyroAimProcessor, UnifiedGamepadParser
 from protocol import BatteryStatus, ProtocolMode
 
 
@@ -30,6 +32,8 @@ class GamepadBridge:
         self.battery_warning_callback = battery_warning_callback
         self.device = ControllerDevice(config)
         self.parser = UnifiedGamepadParser(config)
+        self.gyro_processor = GyroAimProcessor(config.gyro_aim_sensitivity)
+        self.dsu_server: Optional[DsuServer] = None
         self.virtual_pad: Optional[Union[vg.VX360Gamepad, vg.VDS4Gamepad]] = None
         self._running = False
         self._thread: Optional[threading.Thread] = None
@@ -39,6 +43,13 @@ class GamepadBridge:
         self._packet_count = 0
         self._last_rate_calc = time.time()
         self.current_rate_hz = 0.0
+
+        # Stick neutral calibration state
+        self._calibrating = False
+        self._calibrate_samples: List[Tuple[int, int, int, int]] = []
+
+        # HidHide cloaked device tracking
+        self._cloaked_device_id: Optional[str] = None
 
         # Latency & Jitter calculation
         self._packet_intervals = collections.deque(maxlen=60)
@@ -58,9 +69,22 @@ class GamepadBridge:
         self._rumble_changed = False
         self._last_rumble_sent_ts = 0.0
 
+        # Wireless inactivity / sleep detection & auto-rehandshake tracking
+        self._last_packet_received_wall_ts = time.time()
+        self._last_rehandshake_attempt = 0.0
+
+
     @property
     def is_running(self) -> bool:
         return self._running
+
+    @property
+    def last_state(self) -> Optional[GamepadState]:
+        return self._last_state
+
+    @property
+    def is_calibrating(self) -> bool:
+        return self._calibrating
 
     def _setup_virtual_pad(self) -> None:
         """Initialize the ViGEmBus virtual gamepad (Xbox 360 or DualShock 4) and register rumble callback."""
@@ -81,6 +105,29 @@ class GamepadBridge:
                 print(f"[ViGEmBus] Virtual {pad_label} Controller connected with Force Feedback (Rumble).")
             except Exception as e:
                 print(f"[ViGEmBus] Virtual {pad_label} Controller connected (rumble warning: {e}).")
+
+        # Start DSU Motion Server if configured
+        if self.config.enable_dsu_server and not self.dsu_server:
+            self.dsu_server = DsuServer(port=self.config.dsu_server_port)
+            self.dsu_server.start()
+
+        # HidHide cloaking if configured
+        if self.config.enable_hidhide and not self._cloaked_device_id:
+            try:
+                target_id = f"HID\\VID_{self.config.vendor_id:04X}&PID_{self.config.product_id:04X}"
+                if hidhide.cloak_device_id(target_id):
+                    self._cloaked_device_id = target_id
+            except Exception as e:
+                print(f"[HidHide] Cloak error: {e}")
+
+    def calibrate_stick_centers(self) -> None:
+        """Initiate sampling of neutral stick positions to eliminate center drift."""
+        with self._rumble_lock:
+            self._calibrate_samples.clear()
+            self._calibrating = True
+        print("[Calibration] Stick center calibration started. Keep sticks centered...")
+        if self.device.is_connected:
+            self._emit_status(True, self._last_mode, self._last_battery, False)
 
     def _on_vigem_notification(self, client, target, large_motor, small_motor, led_number, user_data):
         """C-callback invoked by ViGEmBus driver."""
@@ -123,6 +170,18 @@ class GamepadBridge:
         if not pad:
             return
 
+        # Gyro Aiming: blend gyro angular velocity into Right Stick
+        if self.config.enable_gyro_aim and state.imu_gyro:
+            is_aiming = (not self.config.gyro_aim_trigger_only) or (state.trigger_l > 30)
+            if is_aiming and (state.imu_gyro[0] != 0.0 or state.imu_gyro[2] != 0.0):
+                self.gyro_processor.sensitivity = self.config.gyro_aim_sensitivity
+                blended_rx, blended_ry = self.gyro_processor.process(
+                    state.imu_gyro[0], state.imu_gyro[2], state.stick_rx, state.stick_ry
+                )
+                state.stick_rx = blended_rx
+                state.stick_ry = blended_ry
+
+
         if isinstance(pad, vg.VDS4Gamepad):
             # PlayStation 4 DualShock 4 mapping
             w_buttons = 0
@@ -148,7 +207,7 @@ class GamepadBridge:
                 w_buttons |= vg.DS4_BUTTONS.DS4_BUTTON_THUMB_RIGHT
 
             w_special = 0
-            if state.btn_guide:
+            if state.btn_guide or state.btn_capture:
                 w_special |= vg.DS4_SPECIAL_BUTTONS.DS4_SPECIAL_BUTTON_PS
 
             # Calculate D-Pad direction
@@ -205,7 +264,7 @@ class GamepadBridge:
                 w_buttons |= vg.XUSB_BUTTON.XUSB_GAMEPAD_BACK
             if state.btn_start:
                 w_buttons |= vg.XUSB_BUTTON.XUSB_GAMEPAD_START
-            if state.btn_guide:
+            if state.btn_guide or state.btn_capture:
                 w_buttons |= vg.XUSB_BUTTON.XUSB_GAMEPAD_GUIDE
             if state.btn_lsb:
                 w_buttons |= vg.XUSB_BUTTON.XUSB_GAMEPAD_LEFT_THUMB
@@ -274,6 +333,9 @@ class GamepadBridge:
             "jitter_ms": self.current_jitter_ms,
             "target_label": target_label,
             "rumble_active": (self._current_large_motor > 0 or self._current_small_motor > 0),
+            "calibrating": self._calibrating,
+            "dsu_active": bool(self.dsu_server and self.dsu_server.is_running),
+            "hidhide_active": bool(self._cloaked_device_id),
         }
         try:
             self.status_callback(info)
@@ -329,6 +391,8 @@ class GamepadBridge:
                         else:
                             self._last_battery = None
                             self._last_mode = ProtocolMode.UNKNOWN
+                            self._last_packet_received_wall_ts = time.time()
+                            self._last_rehandshake_attempt = time.time()
                             self._emit_status(True, ProtocolMode.UNKNOWN, None, False)
 
                 # 2. Non-blocking read from controller HID
@@ -336,6 +400,7 @@ class GamepadBridge:
                 packet = self.device.read(max_length=64, timeout_ms=5)
 
                 if packet:
+                    self._last_packet_received_wall_ts = time.time()
                     self._packet_count += 1
                     now_perf = time.perf_counter()
                     if self._last_packet_ts > 0.0:
@@ -345,6 +410,47 @@ class GamepadBridge:
 
                     state = self.parser.parse(packet)
                     if state:
+                        self._last_state = state
+
+                        # Auto re-handshake if Switch controller dropped to boot/simple mode (0x3F or 0x21)
+                        if (
+                            state.protocol_mode in (ProtocolMode.ODM_SIMPLE_3F, ProtocolMode.SWITCH_REPLY)
+                            and self.device.is_switch_controller
+                        ):
+                            now_wall = time.time()
+                            if now_wall - self._last_rehandshake_attempt >= 2.5:
+                                self._last_rehandshake_attempt = now_wall
+                                print("[Bridge] Switch Pro controller running in boot mode. Re-sending handshake...")
+                                threading.Thread(target=self.device.perform_handshake, daemon=True, name="ReHandshakeThread").start()
+
+                        # Calibration sampling if requested
+                        if self._calibrating:
+                            if (
+                                state.raw_lx is not None
+                                and state.raw_ly is not None
+                                and state.raw_rx is not None
+                                and state.raw_ry is not None
+                            ):
+                                self._calibrate_samples.append((state.raw_lx, state.raw_ly, state.raw_rx, state.raw_ry))
+                                if len(self._calibrate_samples) >= 60:
+                                    avg_lx = sum(s[0] for s in self._calibrate_samples) // len(self._calibrate_samples)
+                                    avg_ly = sum(s[1] for s in self._calibrate_samples) // len(self._calibrate_samples)
+                                    avg_rx = sum(s[2] for s in self._calibrate_samples) // len(self._calibrate_samples)
+                                    avg_ry = sum(s[3] for s in self._calibrate_samples) // len(self._calibrate_samples)
+                                    self.config.stick_lx_center = avg_lx
+                                    self.config.stick_ly_center = avg_ly
+                                    self.config.stick_rx_center = avg_rx
+                                    self.config.stick_ry_center = avg_ry
+                                    self.parser.set_stick_centers(avg_lx, avg_ly, avg_rx, avg_ry)
+                                    self.config.save_to_json(self.config.config_path)
+                                    self._calibrating = False
+                                    print(f"[Calibration] Completed: LX={avg_lx}, LY={avg_ly}, RX={avg_rx}, RY={avg_ry}")
+                                    self._emit_status(True, self._last_mode, self._last_battery, state.charging)
+
+                        # Motion broadcast to Cemuhook DSU server
+                        if self.dsu_server and self.dsu_server.is_running:
+                            self.dsu_server.update_state(state)
+
                         self._apply_state_to_virtual_pad(state)
 
                         # Check protocol mode changes
@@ -391,6 +497,20 @@ class GamepadBridge:
 
                         if status_updated:
                             self._emit_status(True, self._last_mode, self._last_battery, state.charging)
+
+                else:
+                    # Inactivity / sleep detection for wireless/Bluetooth controllers
+                    if self.device.is_connected:
+                        now_wall = time.time()
+                        # If no packets received for 1.8 seconds, controller powered off / auto-slept
+                        if now_wall - self._last_packet_received_wall_ts > 1.8:
+                            print("[Bridge] Wireless controller inactive for >1.8s (auto-sleep or disconnected). Resetting virtual pad.")
+                            self._reset_virtual_pad_inputs()
+                            self._last_state = None
+                            self._last_mode = ProtocolMode.UNKNOWN
+                            self.device.close()  # Closes stale Windows Bluetooth handle
+                            self._emit_status(False, ProtocolMode.UNKNOWN, None, False)
+                            continue
 
                 # 3. Handle Game Force Feedback / Rumble dispatch
                 if self.config.enable_rumble and self.device.is_connected:
@@ -450,5 +570,14 @@ class GamepadBridge:
             pass
         self.device.close()
         self._teardown_virtual_pad()
+        if self.dsu_server:
+            self.dsu_server.stop()
+            self.dsu_server = None
+        if self._cloaked_device_id:
+            try:
+                hidhide.uncloak_device_id(self._cloaked_device_id)
+                self._cloaked_device_id = None
+            except Exception:
+                pass
         self._emit_status(False, ProtocolMode.UNKNOWN, None, False)
         print("[Bridge] Clean shutdown completed.")

@@ -5,7 +5,7 @@ import sys
 from typing import Optional
 
 from bridge import GamepadBridge
-from config import DEFAULT_SWITCH_PID, DEFAULT_SWITCH_VID, BridgeConfig
+from config import APP_VERSION, DEFAULT_SWITCH_PID, DEFAULT_SWITCH_VID, BridgeConfig
 from device import list_connected_gamepads
 from inspector import run_inspector
 from logger import logger, setup_logging
@@ -24,7 +24,7 @@ def parse_hex_int(val: str) -> int:
 
 def print_banner() -> None:
     print("=" * 65)
-    print("  Switch2Xbox v1.1.0")
+    print(f"  Switch2Xbox v{APP_VERSION}")
     print("  Nintendo Switch & ODM Gamepad -> Virtual Xbox 360 / DS4 Bridge")
     print("  Low-Latency XInput / DirectInput Emulation (ViGEmBus + Rumble)")
     print("=" * 65)
